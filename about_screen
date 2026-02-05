@@ -1,0 +1,290 @@
+import 'package:flutter/material.dart';
+
+class AboutScreen extends StatelessWidget {
+  const AboutScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('About KindCart'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Logo and Title
+            Center(
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.recycling,
+                    size: 80,
+                    color: Colors.green,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Thrift+',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                  const Text(
+                    'Sustainable Shopping & Donations',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // Mission Section
+            const Text(
+              'Our Mission',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'To create a sustainable ecosystem where pre-loved items find new homes, '
+                  'reduce waste, and help those in need through easy donations.',
+              style: TextStyle(fontSize: 16, height: 1.5),
+            ),
+
+            const SizedBox(height: 25),
+
+            // What We Do
+            const Text(
+              'What We Do',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            _buildFeatureCard(
+              icon: Icons.shopping_bag,
+              title: 'Thrift Shopping',
+              description: 'Buy quality second-hand items at affordable prices.',
+              color: Colors.green,
+            ),
+
+            _buildFeatureCard(
+              icon: Icons.volunteer_activism,
+              title: 'Easy Donations',
+              description: 'Donate items directly to people who need them.',
+              color: Colors.blue,
+            ),
+
+            _buildFeatureCard(
+              icon: Icons.eco,
+              title: 'Reduce Waste',
+              description: 'Extend product lifespan and reduce landfill waste.',
+              color: Colors.orange,
+            ),
+
+            _buildFeatureCard(
+              icon: Icons.people,
+              title: 'Community Support',
+              description: 'Connect donors with local charities and individuals.',
+              color: Colors.purple,
+            ),
+
+            const SizedBox(height: 25),
+
+            // Stats
+            const Text(
+              'Our Impact',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 15),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatCard('500+', 'Items Saved', Icons.recycling),
+                _buildStatCard('200+', 'Happy Donors', Icons.volunteer_activism),
+                _buildStatCard('300+', 'Families Helped', Icons.family_restroom),
+              ],
+            ),
+
+            const SizedBox(height: 25),
+
+            // Team Section
+            const Text(
+              'Meet Our Team',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'We are a passionate group of developers, designers, and sustainability '
+                  'enthusiasts dedicated to making a positive impact.',
+              style: TextStyle(fontSize: 16, height: 1.5),
+            ),
+
+            const SizedBox(height: 25),
+
+            // Contact Info
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Contact Us',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    _buildContactInfo(Icons.email, 'hello@thriftplus.com'),
+                    const SizedBox(height: 10),
+                    _buildContactInfo(Icons.phone, '+1 (234) 567-8900'),
+                    const SizedBox(height: 10),
+                    _buildContactInfo(Icons.location_on, '123 Green Street, Eco City'),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // Call to Action
+            Center(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.handshake),
+                label: const Text('Join Our Mission'),
+                onPressed: () {
+                  // Navigate to signup or get involved
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withAlpha(20),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 30),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String value, String label, IconData icon) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.green.withAlpha(20),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.green, size: 30),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactInfo(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.green),
+        const SizedBox(width: 10),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 16),
+        ),
+      ],
+    );
+  }
+}
