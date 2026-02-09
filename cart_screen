@@ -1,0 +1,230 @@
+import 'package:flutter/material.dart';
+
+class CartScreen extends StatefulWidget {
+  const CartScreen({super.key});
+
+  @override
+  State<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends State<CartScreen> {
+  // Mock cart items
+  List<Map<String, dynamic>> _cartItems = [
+    {
+      'id': '1',
+      'title': 'Denim Jacket',
+      'price': 25.00,
+      'originalPrice': 40.00,
+      'image': 'https://example.com/jacket.jpg',
+      'seller': 'EcoFashion Store',
+      'quantity': 1,
+      'inStock': true,
+      'deliveryDate': '3-5 days',
+    },
+    {
+      'id': '2',
+      'title': 'Vintage Story Books',
+      'price': 10.00,
+      'originalPrice': 15.00,
+      'image': 'https://example.com/books.jpg',
+      'seller': 'Book Lovers',
+      'quantity': 2,
+      'inStock': true,
+      'deliveryDate': '2-4 days',
+    },
+    {
+      'id': '3',
+      'title': 'Wooden Coffee Table',
+      'price': 45.00,
+      'originalPrice': 60.00,
+      'image': 'https://example.com/table.jpg',
+      'seller': 'Home Decor',
+      'quantity': 1,
+      'inStock': false,
+      'deliveryDate': 'Out of Stock',
+    },
+  ];
+
+  double get _subtotal {
+    return _cartItems.fold(0.0, (total, item) {
+      return total + (item['price'] * item['quantity']);
+    });
+  }
+
+  double get _savings {
+    return _cartItems.fold(0.0, (total, item) {
+      return total + ((item['originalPrice'] - item['price']) * item['quantity']);
+    });
+  }
+
+  double get _total {
+    return _subtotal + 5.99; // Adding shipping
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Shopping Cart'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: _cartItems.isEmpty ? null : _clearCart,
+          ),
+        ],
+      ),
+      body: _cartItems.isEmpty
+          ? _buildEmptyCart()
+          : Column(
+              children: [
+                // Cart Items List
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    itemCount: _cartItems.length,
+                    itemBuilder: (context, index) {
+                      return _buildCartItem(_cartItems[index]);
+                    },
+                  ),
+                ),
+                
+                // Order Summary
+                _buildOrderSummary(),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildEmptyCart() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.shopping_cart_outlined,
+            size: 100,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Your cart is empty',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Add some sustainable items to get started!',
+            style: TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.shopping_bag),
+            label: const Text('Start Shopping'),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCartItem(Map<String, dynamic> item) {
+    return Dismissible(
+      key: Key(item['id']),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (direction) {
+        setState(() {
+          _cartItems.remove(item);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${item['title']} removed from cart'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () {
+                setState(() {
+                  _cartItems.add(item);
+                });
+              },
+            ),
+          ),
+        );
+      },
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Product Image
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(item['image']),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 15),
+              
+              // Product Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item['title'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        if (!item['inStock'])
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Out of Stock',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    Text(
+                      'Sold by: ${item['seller']}',
+                      style: TextStyle(
+                        fontSize: 12,
