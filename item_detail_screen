@@ -1,0 +1,600 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+class ItemDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> item;
+
+  const ItemDetailScreen({super.key, required this.item});
+
+  @override
+  State<ItemDetailScreen> createState() => _ItemDetailScreenState();
+}
+
+class _ItemDetailScreenState extends State<ItemDetailScreen> {
+  bool _isFavorite = false;
+  int _quantity = 1;
+  int _selectedImageIndex = 0;
+
+  // Mock item images (replace with actual URLs later)
+  final List<String> _itemImages = [
+    'https://images.unsplash.com/photo-1544441893-675973e31985',
+    'https://images.unsplash.com/photo-1505022610485-0249ba5b3675',
+    'https://images.unsplash.com/photo-1552374196-c4e7ffc6e126',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Item Details'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: _isFavorite ? Colors.red : null,
+            ),
+            onPressed: () {
+              setState(() {
+                _isFavorite = !_isFavorite;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _isFavorite
+                        ? 'Added to favorites!'
+                        : 'Removed from favorites',
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: _shareItem,
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image Gallery
+            _buildImageGallery(),
+            
+            // Item Details
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title and Price
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.item['name'] ?? 'Product Name',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        widget.item['price'] ?? '\$0',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  // Category and Condition
+                  Row(
+                    children: [
+                      _buildInfoChip(
+                        icon: Icons.category,
+                        label: widget.item['category'] ?? 'Category',
+                      ),
+                      const SizedBox(width: 8),
+                      _buildInfoChip(
+                        icon: Icons.verified,
+                        label: widget.item['condition'] ?? 'Good Condition',
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Description
+                  const Text(
+                    'Description',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.item['description'] ?? 
+                    'This is a high-quality second-hand item in excellent condition. '
+                    'Perfect for those looking for sustainable shopping options.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 25),
+                  
+                  // Seller Info
+                  _buildSellerInfo(),
+                  
+                  const SizedBox(height: 25),
+                  
+                  // Quantity Selector
+                  if (widget.item['type'] == 'product') _buildQuantitySelector(),
+                  
+                  // Item Stats
+                  _buildItemStats(),
+                  
+                  const SizedBox(height: 30),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  Widget _buildImageGallery() {
+    return Column(
+      children: [
+        Container(
+          height: 300,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            image: DecorationImage(
+              image: NetworkImage(_itemImages[_selectedImageIndex]),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Image Indicators
+              Positioned(
+                bottom: 20,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    _itemImages.length,
+                    (index) => Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _selectedImageIndex == index
+                            ? Colors.white
+                            : Colors.white.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              
+              // Image Navigation
+              if (_itemImages.length > 1)
+                Positioned(
+                  left: 10,
+                  top: 0,
+                  bottom: 0,
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        _selectedImageIndex = (_selectedImageIndex - 1)
+                            .clamp(0, _itemImages.length - 1);
+                      });
+                    },
+                  ),
+                ),
+              
+              if (_itemImages.length > 1)
+                Positioned(
+                  right: 10,
+                  top: 0,
+                  bottom: 0,
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_right, color: Colors.white),
+                    onPressed: () {
+                      setState(() {
+                        _selectedImageIndex = (_selectedImageIndex + 1)
+                            .clamp(0, _itemImages.length - 1);
+                      });
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+        
+        // Thumbnail Images
+        if (_itemImages.length > 1)
+          Container(
+            height: 80,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _itemImages.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedImageIndex = index;
+                    });
+                  },
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    margin: const EdgeInsets.symmetric(horizontal: 5),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _selectedImageIndex == index
+                            ? Colors.green
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                      image: DecorationImage(
+                        image: NetworkImage(_itemImages[index]),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildInfoChip({required IconData icon, required String label}) {
+    return Chip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label),
+      backgroundColor: Colors.green[50],
+    );
+  }
+
+  Widget _buildSellerInfo() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Seller Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.green[100],
+                  child: const Icon(
+                    Icons.person,
+                    size: 30,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'John Doe',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 16),
+                          const SizedBox(width: 4),
+                          const Text('4.8'),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('50+ sales'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChatScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.phone),
+                    label: const Text('Call'),
+                    onPressed: () => _launchPhone('+977-9867545678'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.location_on),
+                    label: const Text('Location'),
+                    onPressed: () => _launchMaps('Kathmandu, Nepal'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuantitySelector() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Quantity',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: _quantity > 1
+                      ? () {
+                          setState(() {
+                            _quantity--;
+                          });
+                        }
+                      : null,
+                ),
+                Container(
+                  width: 50,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$_quantity',
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () {
+                    setState(() {
+                      _quantity++;
+                    });
+                  },
+                ),
+                const Spacer(),
+                Text(
+                  'Total: \$${(double.parse(widget.item['price']?.replaceAll('\$', '') ?? '0') * _quantity).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemStats() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildStatItem(Icons.remove_red_eye, '245', 'Views'),
+            _buildStatItem(Icons.favorite_border, '45', 'Likes'),
+            _buildStatItem(Icons.access_time, '2', 'Days Listed'),
+            _buildStatItem(Icons.shopping_cart, '3', 'In Cart'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.green),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Add to Cart Button
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.shopping_cart),
+              label: const Text('Add to Cart'),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Item added to cart!'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.green,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          
+          // Buy Now Button
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CheckoutScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: Colors.orange,
+              ),
+              child: const Text('Buy Now'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchPhone(String phone) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phone);
+    if (!await launchUrl(phoneUri)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not launch phone')),
+      );
+    }
+  }
+
+  Future<void> _launchMaps(String address) async {
+    final Uri mapUri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
+    );
+    if (!await launchUrl(mapUri)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not launch maps')),
+      );
+    }
+  }
+
+  void _shareItem() {
+    // For now, just show a message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sharing feature coming soon!')),
+    );
+  }
+}
+
+// Temporary placeholder screens (create these files separately)
+class ChatScreen extends StatelessWidget {
+  const ChatScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Chat')),
+      body: const Center(child: Text('Chat screen coming soon')),
+    );
+  }
+}
+
+class CheckoutScreen extends StatelessWidget {
+  const CheckoutScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Checkout')),
+      body: const Center(child: Text('Checkout screen coming soon')),
+    );
+  }
+}
