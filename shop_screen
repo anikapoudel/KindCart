@@ -1,0 +1,188 @@
+import 'package:flutter/material.dart';
+
+class ShopScreen extends StatelessWidget {
+  const ShopScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Browse Items'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.shopping_cart),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Categories
+          SizedBox(
+            height: 60,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              children: [
+                _buildCategoryChip('All', true),
+                _buildCategoryChip('Clothing', false),
+                _buildCategoryChip('Books', false),
+                _buildCategoryChip('Electronics', false),
+                _buildCategoryChip('Home', false),
+                _buildCategoryChip('Toys', false),
+              ],
+            ),
+          ),
+
+          // Product Grid
+          Expanded(
+            child: GridView.count(
+              padding: const EdgeInsets.all(15),
+              crossAxisCount: 2,
+              childAspectRatio: 0.7,
+              mainAxisSpacing: 15,
+              crossAxisSpacing: 15,
+              children: [
+                _buildProductCard(
+                  image: 'assets/placeholder1.jpg',
+                  title: 'Designer Jacket',
+                  price: '₹899',
+                  category: 'Clothing',
+                ),
+                _buildProductCard(
+                  image: 'assets/placeholder2.jpg',
+                  title: 'Story Books Set',
+                  price: '₹299',
+                  category: 'Books',
+                ),
+                _buildProductCard(
+                  image: 'assets/placeholder3.jpg',
+                  title: 'Headphones',
+                  price: '₹1,299',
+                  category: 'Electronics',
+                ),
+                _buildProductCard(
+                  image: 'assets/placeholder4.jpg',
+                  title: 'Kitchen Mixer',
+                  price: '₹1,599',
+                  category: 'Home',
+                ),
+                _buildProductCard(
+                  image: 'assets/placeholder5.jpg',
+                  title: 'Teddy Bear',
+                  price: '₹199',
+                  category: 'Toys',
+                ),
+                _buildProductCard(
+                  image: 'assets/placeholder6.jpg',
+                  title: 'Running Shoes',
+                  price: '₹999',
+                  category: 'Clothing',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String text, bool isSelected) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+      child: Chip(
+        label: Text(text),
+        backgroundColor: isSelected ? Colors.green : Colors.grey[200],
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductCard({
+    required String image,
+    required String title,
+    required String price,
+    required String category,
+  }) {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Product Image
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+              ),
+              image: const DecorationImage(
+                image: AssetImage('assets/logo.png'), // Placeholder
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+
+          // Product Details
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  price,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                    const SizedBox(width: 5),
+                    const Text('4.5'),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.favorite_border, size: 20),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
