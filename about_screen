@@ -1,7 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'auth_screen.dart'; // Make sure to import these screens
+import 'donate_screen.dart';
+import 'shop_screen.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  Future<void> _launchEmail(String email) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: email,
+    );
+
+    if (!await launchUrl(emailUri)) {
+      throw 'Could not open email app';
+    }
+  }
+
+  Future<void> _launchPhone(String phone) async {
+    final Uri phoneUri = Uri(
+      scheme: 'tel',
+      path: phone,
+    );
+
+    if (!await launchUrl(phoneUri)) {
+      throw 'Could not open phone dialer';
+    }
+  }
+
+  Future<void> _launchMaps(String address) async {
+    final Uri mapUri = Uri(
+      scheme: 'https',
+      host: 'www.google.com',
+      path: '/maps/search/',
+      queryParameters: {'query': address},
+    );
+
+    if (!await launchUrl(mapUri)) {
+      throw 'Could not open maps';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,14 +63,14 @@ class AboutScreen extends StatelessWidget {
             Center(
               child: Column(
                 children: [
-                  const Icon(
-                    Icons.recycling,
-                    size: 80,
-                    color: Colors.green,
+                  Image.asset(
+                    'assets/logo.png',
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Thrift+',
+                    'KindCart',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -61,8 +100,12 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              'To create a sustainable ecosystem where pre-loved items find new homes, '
-                  'reduce waste, and help those in need through easy donations.',
+              'To enable purchasing and selling second-hand items while facilitating '
+                  'easier donations of useful items. The app aims to encourage sustainable '
+                  'consumption and social responsibility through a user-friendly technological '
+                  'interface. The goal is not only to create a marketplace platform but also '
+                  'to foster a community that practices sustainable and responsible consumption, '
+                  'along with charitable donations focusing on ethical fashion and giving.',
               style: TextStyle(fontSize: 16, height: 1.5),
             ),
 
@@ -161,11 +204,32 @@ class AboutScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 15),
-                    _buildContactInfo(Icons.email, 'hello@thriftplus.com'),
+
+                    // Email - opens email app
+                    InkWell(
+                      onTap: () {
+                        _launchEmail('panika22@tbc.edu.np');
+                      },
+                      child: _buildContactInfo(Icons.email, 'panika22@tbc.edu.np'),
+                    ),
                     const SizedBox(height: 10),
-                    _buildContactInfo(Icons.phone, '+1 (234) 567-8900'),
+
+                    // Phone - opens phone dialer
+                    InkWell(
+                      onTap: () {
+                        _launchPhone('+977-9867545678');
+                      },
+                      child: _buildContactInfo(Icons.phone, '+977-9867545678'),
+                    ),
                     const SizedBox(height: 10),
-                    _buildContactInfo(Icons.location_on, '123 Green Street, Eco City'),
+
+                    // Location - opens maps
+                    InkWell(
+                      onTap: () {
+                        _launchMaps('Thapathali Road, Kathmandu 44600');
+                      },
+                      child: _buildContactInfo(Icons.location_on, 'Thapathali Road, Kathmandu 44600'),
+                    ),
                   ],
                 ),
               ),
@@ -173,16 +237,18 @@ class AboutScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Call to Action
+            // Call to Action - Join Our Mission Button
             Center(
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.handshake),
                 label: const Text('Join Our Mission'),
                 onPressed: () {
-                  // Navigate to signup or get involved
+                  _showJoinOptions(context);
                 },
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  backgroundColor: Colors.green[700],
+                  foregroundColor: Colors.white,
                 ),
               ),
             ),
@@ -191,6 +257,148 @@ class AboutScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  // Method to show join options
+  void _showJoinOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Join Our Mission',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Choose how you would like to contribute:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Option 1: Sign Up
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withAlpha(30),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.person_add, color: Colors.green),
+                  ),
+                  title: const Text('Create an Account'),
+                  subtitle: const Text('Sign up to start donating or shopping'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.pop(context); // Close bottom sheet
+                    // Navigate to Sign Up Screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AuthScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const Divider(),
+
+                // Option 2: Start Donating
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withAlpha(30),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.volunteer_activism, color: Colors.blue),
+                  ),
+                  title: const Text('Start Donating'),
+                  subtitle: const Text('Donate items you no longer need'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.pop(context); // Close bottom sheet
+                    // Navigate to Donation Screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DonateScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const Divider(),
+
+                // Option 3: Shop Sustainably
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withAlpha(30),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.shopping_bag, color: Colors.orange),
+                  ),
+                  title: const Text('Shop Sustainably'),
+                  subtitle: const Text('Browse eco-friendly second-hand items'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.pop(context); // Close bottom sheet
+                    // Navigate to Shopping Screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ShopScreen(),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 20),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Maybe Later'),
+                  ),
+                ),
+                const SizedBox(height: 10), // Extra padding for safety
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
