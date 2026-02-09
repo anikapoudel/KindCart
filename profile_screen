@@ -1,0 +1,561 @@
+import 'package:flutter/material.dart';
+import 'auth_screen.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final Map<String, dynamic> _userProfile = {
+    'name': 'John Doe',
+    'email': 'john.doe@example.com',
+    'phone': '+977-9867545678',
+    'role': 'buyer',
+    'status': 'approved',
+    'joinedDate': '2024-01-15',
+    'address': 'Thapathali, Kathmandu 44600',
+    'bio': 'Sustainability enthusiast and thrift shopping lover',
+    'avatarUrl': 'https://example.com/avatar.jpg',
+  };
+
+  final List<Map<String, dynamic>> _userStats = [
+    {'label': 'Items Bought', 'value': '24', 'icon': Icons.shopping_bag},
+    {'label': 'Items Sold', 'value': '12', 'icon': Icons.store},
+    {'label': 'Items Donated', 'value': '8', 'icon': Icons.volunteer_activism},
+    {'label': 'Reviews', 'value': '4.8', 'icon': Icons.star},
+  ];
+
+  final List<Map<String, dynamic>> _activeListings = [
+    {
+      'title': 'Denim Jacket',
+      'price': '\$25',
+      'status': 'Active',
+      'views': 124,
+      'image': '👕',
+    },
+    {
+      'title': 'Wooden Chair',
+      'price': '\$45',
+      'status': 'Pending',
+      'views': 56,
+      'image': '🪑',
+    },
+  ];
+
+  bool _isEditing = false;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  void _loadProfileData() {
+    _nameController.text = _userProfile['name'];
+    _emailController.text = _userProfile['email'];
+    _phoneController.text = _userProfile['phone'];
+    _addressController.text = _userProfile['address'];
+    _bioController.text = _userProfile['bio'];
+  }
+
+  void _saveProfile() {
+    setState(() {
+      _userProfile['name'] = _nameController.text;
+      _userProfile['email'] = _emailController.text;
+      _userProfile['phone'] = _phoneController.text;
+      _userProfile['address'] = _addressController.text;
+      _userProfile['bio'] = _bioController.text;
+      _isEditing = false;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Profile updated successfully!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        actions: [
+          if (!_isEditing)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                setState(() {
+                  _isEditing = true;
+                });
+              },
+            ),
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.check),
+              onPressed: _saveProfile,
+            ),
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                setState(() {
+                  _isEditing = false;
+                  _loadProfileData(); // Reset to original values
+                });
+              },
+            ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Profile Header
+            _buildProfileHeader(),
+            
+            // User Stats
+            _buildUserStats(),
+            
+            // Profile Details
+            _buildProfileDetails(),
+            
+            // Active Listings
+            _buildActiveListings(),
+            
+            // Account Settings
+            _buildAccountSettings(),
+            
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green, Colors.lightGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Profile Avatar
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 48,
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage: const NetworkImage(
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d',
+                  ),
+                ),
+              ),
+              if (_isEditing)
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.green),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Image upload coming soon!'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+          
+          const SizedBox(height: 15),
+          
+          // User Name and Role
+          Text(
+            _userProfile['name'],
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          
+          const SizedBox(height: 5),
+          
+          Chip(
+            label: Text(
+              _userProfile['role'].toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+              ),
+            ),
+            backgroundColor: Colors.green[700],
+          ),
+          
+          const SizedBox(height: 10),
+          
+          // Bio
+          Text(
+            _userProfile['bio'],
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserStats() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey[300]!),
+        ),
+      ),
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 4,
+        childAspectRatio: 0.8,
+        children: _userStats.map((stat) {
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  stat['icon'],
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                stat['value'],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                stat['label'],
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildProfileDetails() {
+    return Card(
+      margin: const EdgeInsets.all(20),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Personal Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Name
+            _buildEditableField(
+              label: 'Full Name',
+              icon: Icons.person,
+              controller: _nameController,
+              enabled: _isEditing,
+            ),
+            
+            // Email
+            _buildEditableField(
+              label: 'Email Address',
+              icon: Icons.email,
+              controller: _emailController,
+              enabled: _isEditing,
+            ),
+            
+            // Phone
+            _buildEditableField(
+              label: 'Phone Number',
+              icon: Icons.phone,
+              controller: _phoneController,
+              enabled: _isEditing,
+            ),
+            
+            // Address
+            _buildEditableField(
+              label: 'Address',
+              icon: Icons.location_on,
+              controller: _addressController,
+              enabled: _isEditing,
+              maxLines: 2,
+            ),
+            
+            // Bio
+            _buildEditableField(
+              label: 'Bio',
+              icon: Icons.description,
+              controller: _bioController,
+              enabled: _isEditing,
+              maxLines: 3,
+            ),
+            
+            // Joined Date (Read-only)
+            ListTile(
+              leading: const Icon(Icons.calendar_today, color: Colors.green),
+              title: const Text('Member Since'),
+              subtitle: Text(_userProfile['joinedDate']),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditableField({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    required bool enabled,
+    int maxLines = 1,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.green),
+      title: enabled
+          ? TextFormField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: label,
+                border: InputBorder.none,
+              ),
+              maxLines: maxLines,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  controller.text,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildActiveListings() {
+    if (_activeListings.isEmpty) return const SizedBox();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'My Listings',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _activeListings.length,
+            itemBuilder: (context, index) {
+              final listing = _activeListings[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      listing['image'],
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                  title: Text(listing['title']),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(listing['price']),
+                      const SizedBox(height: 4),
+                      Chip(
+                        label: Text(
+                          listing['status'],
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        backgroundColor: listing['status'] == 'Active'
+                            ? Colors.green[50]
+                            : Colors.orange[50],
+                      ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.remove_red_eye, size: 16),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${listing['views']}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ItemDetailScreen(item: listing),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountSettings() {
+    return Card(
+      margin: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.notifications, color: Colors.green),
+            title: const Text('Notifications'),
+            trailing: Switch(
+              value: true,
+              onChanged: (value) {},
+              activeColor: Colors.green,
+            ),
+          ),
+          const Divider(height: 0),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip, color: Colors.green),
+            title: const Text('Privacy Settings'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Privacy settings coming soon!'),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 0),
+          ListTile(
+            leading: const Icon(Icons.help_center, color: Colors.green),
+            title: const Text('Help & Support'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Help center coming soon!'),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 0),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text(
+              'Log Out',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () {
+              _showLogoutConfirmation();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AuthScreen(),
+                ),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'Log Out',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
