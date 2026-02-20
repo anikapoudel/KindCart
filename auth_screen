@@ -1,97 +1,299 @@
 import 'package:flutter/material.dart';
 
-class AuthScreen extends StatelessWidget {
+class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  // Form key for validation
+  final _formKey = GlobalKey<FormState>();
+
+  // Controllers to get text from fields
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  // Track if we're in login or signup mode
+  bool _isLogin = true;
+
+  // For signup - selected role
+  String? _selectedRole;
+  final List<String> _roles = ['Buyer', 'Seller', 'Donor'];
+
+  // Hide/show password
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  @override
+  void dispose() {
+    // Clean up controllers
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      // Form is valid, proceed with authentication
+      String message = _isLogin
+          ? 'Logging in with ${_emailController.text}'
+          : 'Creating account as $_selectedRole with ${_emailController.text}';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
+      // TODO: Add actual authentication logic here
+
+      // For now, just go back after "login"
+      // Navigator.pop(context);
+    }
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _isLogin = !_isLogin;
+      // Clear fields when switching modes
+      _emailController.clear();
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      _selectedRole = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign Up / Login'),
+        title: Text(_isLogin ? 'Login' : 'Create Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Logo
-            Image.asset(
-              'assets/logo.png',
-              height: 80,
-            ),
-            const SizedBox(height: 30),
-
-            // Welcome Text
-            const Text(
-              'Join KindCart',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // Logo
+              Image.asset(
+                'assets/logo.png',
+                height: 80,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback if logo doesn't exist yet
+                  return Container(
+                    height: 80,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.green[100],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shopping_bag, size: 40, color: Colors.green),
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Create an account or login to start your sustainable journey',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 30),
+              const SizedBox(height: 30),
 
-            // Email Field
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            // Password Field
-            TextFormField(
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                prefixIcon: Icon(Icons.lock),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            // Sign Up Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+              // Welcome Text
+              Text(
+                _isLogin ? 'Welcome Back!' : 'Join KindCart',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: const Text('Sign Up'),
               ),
-            ),
-            const SizedBox(height: 15),
-
-            // Login Button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {},
-                child: const Text('Already have an account? Login'),
+              const SizedBox(height: 10),
+              Text(
+                _isLogin
+                    ? 'Login to continue your sustainable journey'
+                    : 'Create an account to start your sustainable journey',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
               ),
-            ),
+              const SizedBox(height: 30),
 
-            const Spacer(),
+              // Email Field
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  // Basic email validation
+                  if (!value.contains('@') || !value.contains('.')) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 15),
 
-            // Terms
-            const Text(
-              'By continuing, you agree to our Terms of Service and Privacy Policy',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+              // Password Field
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  if (!_isLogin && value.length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 15),
+
+              // Confirm Password (only for signup)
+              if (!_isLogin) ...[
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                        });
+                      },
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm your password';
+                    }
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 15),
+
+                // Role Selection (only for signup)
+                DropdownButtonFormField<String>(
+                  value: _selectedRole,
+                  decoration: const InputDecoration(
+                    labelText: 'Role',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _roles.map((role) {
+                    return DropdownMenuItem(
+                      value: role,
+                      child: Row(
+                        children: [
+                          Icon(
+                            role == 'Buyer' ? Icons.shopping_bag :
+                            role == 'Seller' ? Icons.store :
+                            Icons.volunteer_activism,
+                            size: 20,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(role),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedRole = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select your role';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 25),
+              ] else ...[
+                const SizedBox(height: 10),
+
+                // Forgot Password (only for login)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      // TODO: Implement forgot password
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Password reset coming soon!')),
+                      );
+                    },
+                    child: const Text('Forgot Password?'),
+                  ),
+                ),
+                const SizedBox(height: 15),
+              ],
+
+              // Main Action Button (Login or Sign Up)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _submitForm,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: Text(_isLogin ? 'Login' : 'Sign Up'),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              // Toggle between Login and Sign Up
+              TextButton(
+                onPressed: _toggleMode,
+                child: Text(
+                  _isLogin
+                      ? 'Need an account? Sign Up'
+                      : 'Already have an account? Login',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Terms (only for signup)
+              if (!_isLogin)
+                const Text(
+                  'By signing up, you agree to our Terms of Service and Privacy Policy',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
