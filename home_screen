@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-
+import 'about_screen.dart';
+import 'package:provider/provider.dart';
+import '../theme_provider.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,26 +36,23 @@ class HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: InkWell(
           onTap: () {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('About KindCart'),
-                content: const Text('Sustainable shopping and donations app.'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
+            // Navigate to AboutScreen instead of showing dialog
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AboutScreen()),
             );
           },
           child: Row(
             children: [
-              const Icon(Icons.recycling, color: Colors.green),
+              //  logo
+              Image.asset(
+                'assets/logo.png',
+                width: 100,
+                height: 100,
+              ),
               const SizedBox(width: 10),
               Text(
-                'Thrift+',
+                'KindCart',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 22,
@@ -63,6 +62,18 @@ class HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, child) {
+              return IconButton(
+                icon: Icon(
+                  themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                  color: themeProvider.isDarkMode ? Colors.amber : Colors.grey[700],
+                ),
+                onPressed: () => themeProvider.toggleTheme(),
+                tooltip: themeProvider.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {},
