@@ -1,0 +1,923 @@
+// lib/screens/add_donation_screen.dart
+import 'package:flutter/material.dart';
+
+class AddDonationScreen extends StatefulWidget {
+  const AddDonationScreen({super.key});
+
+  @override
+  State<AddDonationScreen> createState() => _AddDonationScreenState();
+}
+
+class _AddDonationScreenState extends State<AddDonationScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // ========== CONTROLLERS ==========
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _quantityController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _sizeController = TextEditingController();
+  final _colorController = TextEditingController();
+  final _materialController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _contactController = TextEditingController();
+
+  // ========== SELECTED VALUES ==========
+  String? _selectedCategory;
+  String? _selectedCondition;
+  String? _selectedGender;
+  String? _selectedUrgency;
+
+  // ========== TOGGLES ==========
+  bool _canPickup = true;
+  bool _canDeliver = false;
+  bool _isAnonymous = false;
+
+  // ========== LISTS ==========
+  final List<Map<String, dynamic>> _categories = [
+    {'name': 'Clothing', 'icon': Icons.checkroom, 'color': Colors.blue},
+    {'name': 'Books', 'icon': Icons.menu_book, 'color': Colors.green},
+    {'name': 'Toys', 'icon': Icons.toys, 'color': Colors.orange},
+    {'name': 'Kitchenware', 'icon': Icons.kitchen, 'color': Colors.purple},
+    {'name': 'Electronics', 'icon': Icons.electrical_services, 'color': Colors.red},
+    {'name': 'Furniture', 'icon': Icons.chair, 'color': Colors.brown},
+    {'name': 'Food', 'icon': Icons.fastfood, 'color': Colors.amber},
+    {'name': 'Other', 'icon': Icons.add, 'color': Colors.grey},
+  ];
+
+  final List<String> _conditions = [
+    'Like New', 'Excellent', 'Good', 'Fair', 'Needs Repair'
+  ];
+
+  final List<String> _urgencies = [
+    'Immediate (24-48 hrs)', 'Urgent (3-5 days)', 'Normal (This week)', 'Anytime'
+  ];
+
+  final List<String> _genders = ['Men', 'Women', 'Unisex', 'Kids', 'Baby'];
+
+  final List<String> _sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Free Size'];
+
+  // ========== STEPPER ==========
+  int _currentStep = 0;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _quantityController.dispose();
+    _brandController.dispose();
+    _sizeController.dispose();
+    _colorController.dispose();
+    _materialController.dispose();
+    _locationController.dispose();
+    _contactController.dispose();
+    super.dispose();
+  }
+
+  // ========== SUBMIT FORM ==========
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      // TODO: Save to Firebase later
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Donation posted successfully! Thank you for your kindness!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      // Go back to donate screen
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Donate Items',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => _showExitConfirmation(),
+        ),
+        backgroundColor: Colors.orange,
+        foregroundColor: Colors.white,
+        actions: [
+          TextButton(
+            onPressed: _currentStep == 2 ? _submitForm : null,
+            child: Text(
+              _currentStep == 2 ? 'POST' : 'Next',
+              style: TextStyle(
+                color: _currentStep == 2 ? Colors.white : Colors.white70,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Stepper(
+        type: StepperType.horizontal,
+        currentStep: _currentStep,
+        onStepContinue: _currentStep < 2 ? () {
+          if (_validateCurrentStep()) {
+            setState(() {
+              _currentStep++;
+            });
+          }
+        } : null,
+        onStepCancel: _currentStep > 0 ? () {
+          setState(() {
+            _currentStep--;
+          });
+        } : null,
+        controlsBuilder: (context, details) {
+          return const SizedBox.shrink(); // Hide default buttons
+        },
+        steps: [
+          // Step 1: Item Details
+          Step(
+            title: const Text('Item Details'),
+            content: _buildItemDetailsStep(),
+            isActive: _currentStep >= 0,
+          ),
+
+          // Step 2: Donation Details
+          Step(
+            title: const Text('Donation Details'),
+            content: _buildDonationDetailsStep(),
+            isActive: _currentStep >= 1,
+          ),
+
+          // Step 3: Review
+          Step(
+            title: const Text('Review'),
+            content: _buildReviewStep(),
+            isActive: _currentStep >= 2,
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomButtons(),
+    );
+  }
+
+  // ========== STEP 1: ITEM DETAILS ==========
+  Widget _buildItemDetailsStep() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category Selection (Matching your existing design)
+          const Text(
+            'What would you like to donate? *',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 15),
+
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.9,
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, index) {
+              final category = _categories[index];
+              final isSelected = _selectedCategory == category['name'];
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedCategory = category['name'] as String;
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? (category['color'] as Color).withAlpha(26)
+                        : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isSelected
+                          ? category['color'] as Color
+                          : Colors.grey.shade300,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        category['icon'] as IconData,
+                        color: isSelected
+                            ? category['color'] as Color
+                            : Colors.grey,
+                        size: 30,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        category['name'] as String,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isSelected
+                              ? category['color'] as Color
+                              : Colors.grey,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 25),
+
+          // Item Title
+          const Text(
+            'Item Name *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _titleController,
+            decoration: InputDecoration(
+              hintText: 'e.g., Winter Jackets, Children Books, etc.',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+              prefixIcon: const Icon(Icons.label_outline),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter item name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 15),
+
+          // Quantity
+          TextFormField(
+            controller: _quantityController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Quantity',
+              hintText: 'e.g., 1, 5, 10',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+              prefixIcon: const Icon(Icons.production_quantity_limits),
+            ),
+          ),
+          const SizedBox(height: 15),
+
+          // Condition
+          const Text(
+            'Condition *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedCondition,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            hint: const Text('Select condition'),
+            items: _conditions.map((condition) {
+              return DropdownMenuItem(
+                value: condition,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _getConditionColor(condition),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(condition),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCondition = value;
+              });
+            },
+            validator: (value) {
+              if (value == null) {
+                return 'Please select condition';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 15),
+
+          // Description
+          const Text(
+            'Description *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _descriptionController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Describe the item you want to donate...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+              alignLabelWithHint: true,
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter description';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 15),
+
+          // Category-specific fields
+          if (_selectedCategory == 'Clothing') _buildClothingFields(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClothingFields() {
+    return Column(
+      children: [
+        const SizedBox(height: 15),
+        const Divider(),
+        const SizedBox(height: 15),
+        const Text(
+          'Clothing Details (Optional)',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // Gender
+        DropdownButtonFormField<String>(
+          value: _selectedGender,
+          decoration: InputDecoration(
+            labelText: 'Gender',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: _genders.map((gender) {
+            return DropdownMenuItem(
+              value: gender,
+              child: Text(gender),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedGender = value;
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Size
+        DropdownButtonFormField<String>(
+          value: _sizeController.text.isEmpty ? null : _sizeController.text,
+          decoration: InputDecoration(
+            labelText: 'Size',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: _sizes.map((size) {
+            return DropdownMenuItem(
+              value: size,
+              child: Text(size),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _sizeController.text = value ?? '';
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Brand
+        TextFormField(
+          controller: _brandController,
+          decoration: InputDecoration(
+            labelText: 'Brand',
+            hintText: 'e.g., Nike, H&M, Local Market',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Color
+        TextFormField(
+          controller: _colorController,
+          decoration: InputDecoration(
+            labelText: 'Color',
+            hintText: 'e.g., Blue, Red, Multi',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ========== STEP 2: DONATION DETAILS ==========
+  Widget _buildDonationDetailsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Urgency
+        const Text(
+          'How urgent is this donation? *',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedUrgency,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          hint: const Text('Select urgency'),
+          items: _urgencies.map((urgency) {
+            return DropdownMenuItem(
+              value: urgency,
+              child: Row(
+                children: [
+                  Icon(
+                    _getUrgencyIcon(urgency),
+                    size: 16,
+                    color: _getUrgencyColor(urgency),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(urgency),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedUrgency = value;
+            });
+          },
+          validator: (value) {
+            if (value == null) {
+              return 'Please select urgency';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 25),
+
+        // Location
+        const Text(
+          'Pickup Location *',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _locationController,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.location_on),
+            hintText: 'Enter your city/locality for pickup',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter location';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Contact Information
+        const Text(
+          'Contact Number *',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _contactController,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.phone),
+            hintText: 'Mobile number for pickup coordination',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter contact number';
+            }
+            if (value.length < 10) {
+              return 'Enter valid 10-digit number';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 25),
+
+        // Pickup Options
+        const Text(
+          'Pickup Options',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+
+        // Can Pickup
+        SwitchListTile(
+          title: const Text('Recipient can pickup'),
+          subtitle: const Text('They will come to your location'),
+          value: _canPickup,
+          onChanged: (value) {
+            setState(() {
+              _canPickup = value;
+            });
+          },
+          secondary: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withAlpha(26),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.person_pin, color: Colors.blue),
+          ),
+        ),
+
+        // Can Deliver
+        SwitchListTile(
+          title: const Text('I can deliver'),
+          subtitle: const Text('You will drop off the items'),
+          value: _canDeliver,
+          onChanged: (value) {
+            setState(() {
+              _canDeliver = value;
+            });
+          },
+          secondary: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green.withAlpha(26),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.delivery_dining, color: Colors.green),
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Anonymous Donation
+        SwitchListTile(
+          title: const Text('Donate anonymously'),
+          subtitle: const Text('Your name will not be shown publicly'),
+          value: _isAnonymous,
+          onChanged: (value) {
+            setState(() {
+              _isAnonymous = value;
+            });
+          },
+          secondary: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.purple.withAlpha(26),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.visibility_off, color: Colors.purple),          ),
+        ),
+      ],
+    );
+  }
+
+  // ========== STEP 3: REVIEW ==========
+  Widget _buildReviewStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Thank You Message
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.orange.withAlpha(26),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.orange.withAlpha(77)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.favorite, color: Colors.orange, size: 30),
+              SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Thank you for your generosity!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Your donation will help someone in need.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 25),
+
+        // Donation Summary
+        const Text(
+          'Donation Summary',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        const SizedBox(height: 15),
+
+        _buildReviewItem('Category', _selectedCategory ?? 'Not selected'),
+        _buildReviewItem('Item', _titleController.text.isNotEmpty ? _titleController.text : 'Not provided'),
+        _buildReviewItem('Quantity', _quantityController.text.isNotEmpty ? _quantityController.text : '1'),
+        _buildReviewItem('Condition', _selectedCondition ?? 'Not selected'),
+        if (_brandController.text.isNotEmpty)
+          _buildReviewItem('Brand', _brandController.text),
+        if (_sizeController.text.isNotEmpty)
+          _buildReviewItem('Size', _sizeController.text),
+        _buildReviewItem('Urgency', _selectedUrgency ?? 'Not selected'),
+        _buildReviewItem('Location', _locationController.text.isNotEmpty ? _locationController.text : 'Not provided'),
+        _buildReviewItem('Contact', _contactController.text.isNotEmpty ? _contactController.text : 'Not provided'),
+        _buildReviewItem('Pickup', _canPickup ? 'Available' : 'Not available'),
+        _buildReviewItem('Delivery', _canDeliver ? 'Available' : 'Not available'),
+        _buildReviewItem('Anonymous', _isAnonymous ? 'Yes' : 'No'),
+
+        const SizedBox(height: 25),
+
+        // Guidelines Reminder
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.blue.withAlpha(13),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '📋 Donation Guidelines Reminder:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('• Items should be in good condition'),
+              Text('• Clean and sanitize items before donating'),
+              Text('• Include all parts and accessories'),
+              Text('• No broken or hazardous items'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReviewItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== BOTTOM BUTTONS ==========
+  Widget _buildBottomButtons() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha(26),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_currentStep > 0)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _currentStep--;
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  side: const BorderSide(color: Colors.orange),
+                  foregroundColor: Colors.orange,
+                ),
+                child: const Text('Back'),
+              ),
+            ),
+          if (_currentStep > 0) const SizedBox(width: 15),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                if (_currentStep == 2) {
+                  _submitForm();
+                } else if (_validateCurrentStep()) {
+                  setState(() {
+                    _currentStep++;
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: Text(_currentStep == 2 ? 'Post Donation' : 'Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== HELPER FUNCTIONS ==========
+  bool _validateCurrentStep() {
+    switch (_currentStep) {
+      case 0:
+        if (_selectedCategory == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select a category'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        return _formKey.currentState?.validate() ?? false;
+      case 1:
+        if (_selectedUrgency == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select urgency'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        if (_locationController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter pickup location'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        if (_contactController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter contact number'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  void _showExitConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Discard Donation?'),
+          content: const Text('Your donation post will not be saved. Are you sure?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Continue Editing'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Go back
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Discard'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _getConditionColor(String condition) {
+    switch (condition) {
+      case 'Like New':
+        return Colors.green;
+      case 'Excellent':
+        return Colors.teal;
+      case 'Good':
+        return Colors.blue;
+      case 'Fair':
+        return Colors.orange;
+      case 'Needs Repair':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getUrgencyColor(String urgency) {
+    if (urgency.contains('Immediate')) return Colors.red;
+    if (urgency.contains('Urgent')) return Colors.orange;
+    if (urgency.contains('Normal')) return Colors.blue;
+    return Colors.green;
+  }
+
+  IconData _getUrgencyIcon(String urgency) {
+    if (urgency.contains('Immediate')) return Icons.warning;
+    if (urgency.contains('Urgent')) return Icons.access_time;
+    if (urgency.contains('Normal')) return Icons.event;
+    return Icons.event_available;
+  }
+}
