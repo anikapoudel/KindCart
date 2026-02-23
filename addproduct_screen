@@ -1,0 +1,1036 @@
+// lib/screens/add_product_screen.dart
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart'; // Add this to pubspec.yaml
+
+class AddProductScreen extends StatefulWidget {
+  const AddProductScreen({super.key});
+
+  @override
+  State<AddProductScreen> createState() => _AddProductScreenState();
+}
+
+class _AddProductScreenState extends State<AddProductScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // ========== CONTROLLERS ==========
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _originalPriceController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _sizeController = TextEditingController();
+  final _colorController = TextEditingController();
+  final _materialController = TextEditingController();
+  final _locationController = TextEditingController();
+
+  // ========== SELECTED VALUES ==========
+  String? _selectedCategory;
+  String? _selectedCondition;
+  String? _selectedGender;
+
+  // ========== TOGGLES ==========
+  bool _isNegotiable = false;
+  bool _canShip = false;
+  bool _hasOriginalPackaging = false;
+
+  // ========== LISTS ==========
+  final List<String> _categories = [
+    'Clothing', 'Electronics', 'Furniture', 'Books',
+    'Toys', 'Sports', 'Kitchen', 'Other'
+  ];
+
+  final List<String> _conditions = [
+    'Like New', 'Excellent', 'Good', 'Fair', 'Needs Repair'
+  ];
+
+  final List<String> _genders = ['Men', 'Women', 'Unisex', 'Kids'];
+
+  final List<String> _sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+
+  // ========== IMAGES ==========
+  final List<XFile> _selectedImages = [];
+  final ImagePicker _imagePicker = ImagePicker();
+
+  // ========== STEPPER ==========
+  int _currentStep = 0;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    _originalPriceController.dispose();
+    _brandController.dispose();
+    _sizeController.dispose();
+    _colorController.dispose();
+    _materialController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  // ========== IMAGE PICKER ==========
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile>? images = await _imagePicker.pickMultiImage(
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (images != null) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking images: $e')),
+      );
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    try {
+      final XFile? photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (photo != null) {
+        setState(() {
+          _selectedImages.add(photo);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error taking photo: $e')),
+      );
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
+  // ========== SUBMIT FORM ==========
+  void _submitForm() {
+    if (_formKey.currentState!.validate()) {
+      // TODO: Save to Firebase later
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Product listed successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Go back to home
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Sell an Item',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => _showExitConfirmation(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _currentStep == 3 ? _submitForm : null,
+            child: Text(
+              _currentStep == 3 ? 'POST' : 'Next',
+              style: TextStyle(
+                color: _currentStep == 3 ? Colors.green : Colors.grey,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Stepper(
+        type: StepperType.horizontal,
+        currentStep: _currentStep,
+        onStepContinue: _currentStep < 3 ? () {
+          if (_validateCurrentStep()) {
+            setState(() {
+              _currentStep++;
+            });
+          }
+        } : null,
+        onStepCancel: _currentStep > 0 ? () {
+          setState(() {
+            _currentStep--;
+          });
+        } : null,
+        controlsBuilder: (context, details) {
+          return const SizedBox.shrink(); // Hide default buttons
+        },
+        steps: [
+          // Step 1: Basic Info
+          Step(
+            title: const Text('Basic Info'),
+            content: _buildBasicInfoStep(),
+            isActive: _currentStep >= 0,
+          ),
+
+          // Step 2: Photos & Details
+          Step(
+            title: const Text('Photos & Details'),
+            content: _buildPhotosAndDetailsStep(),
+            isActive: _currentStep >= 1,
+          ),
+
+          // Step 3: Pricing & Location
+          Step(
+            title: const Text('Pricing & Location'),
+            content: _buildPricingAndLocationStep(),
+            isActive: _currentStep >= 2,
+          ),
+
+          // Step 4: Review
+          Step(
+            title: const Text('Review'),
+            content: _buildReviewStep(),
+            isActive: _currentStep >= 3,
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomButtons(),
+    );
+  }
+
+  // ========== STEP 1: BASIC INFO ==========
+  Widget _buildBasicInfoStep() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          const Text(
+            'What are you selling? *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _titleController,
+            decoration: InputDecoration(
+              hintText: 'e.g., Vintage Denim Jacket, iPhone 11, etc.',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter a title';
+              }
+              if (value.length < 10) {
+                return 'Title must be at least 10 characters';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Category
+          const Text(
+            'Category *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            hint: const Text('Select category'),
+            items: _categories.map((category) {
+              return DropdownMenuItem(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCategory = value;
+              });
+            },
+            validator: (value) {
+              if (value == null) {
+                return 'Please select a category';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Condition
+          const Text(
+            'Condition *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _selectedCondition,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            hint: const Text('Select condition'),
+            items: _conditions.map((condition) {
+              return DropdownMenuItem(
+                value: condition,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _getConditionColor(condition),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(condition),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCondition = value;
+              });
+            },
+            validator: (value) {
+              if (value == null) {
+                return 'Please select condition';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Description
+          const Text(
+            'Description *',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _descriptionController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'Describe your item in detail...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter description';
+              }
+              if (value.length < 20) {
+                return 'Description must be at least 20 characters';
+              }
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== STEP 2: PHOTOS & DETAILS ==========
+  Widget _buildPhotosAndDetailsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Photos Section
+        const Text(
+          'Photos *',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Add up to 10 photos. First photo will be the cover.',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+        const SizedBox(height: 15),
+        _buildPhotoGrid(),
+        const SizedBox(height: 25),
+
+        // Category-specific fields
+        if (_selectedCategory == 'Clothing') _buildClothingFields(),
+        if (_selectedCategory == 'Electronics') _buildElectronicsFields(),
+        if (_selectedCategory == 'Furniture') _buildFurnitureFields(),
+
+        // Common fields for all categories
+        const SizedBox(height: 20),
+        const Text(
+          'Additional Details',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // Brand
+        TextFormField(
+          controller: _brandController,
+          decoration: InputDecoration(
+            labelText: 'Brand',
+            hintText: 'e.g., Nike, Apple, IKEA',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Color
+        TextFormField(
+          controller: _colorController,
+          decoration: InputDecoration(
+            labelText: 'Color',
+            hintText: 'e.g., Black, Blue, Multi',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Material
+        TextFormField(
+          controller: _materialController,
+          decoration: InputDecoration(
+            labelText: 'Material',
+            hintText: 'e.g., Cotton, Leather, Plastic',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Original Packaging
+        SwitchListTile(
+          title: const Text('Has Original Packaging'),
+          value: _hasOriginalPackaging,
+          onChanged: (value) {
+            setState(() {
+              _hasOriginalPackaging = value;
+            });
+          },
+          secondary: const Icon(Icons.inventory),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhotoGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: _selectedImages.length + 1,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _buildAddPhotoButton();
+        }
+        return _buildPhotoThumbnail(index - 1);
+      },
+    );
+  }
+
+  Widget _buildAddPhotoButton() {
+    return GestureDetector(
+      onTap: () => _showImagePickerOptions(),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+          color: Colors.grey[50],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera_alt, color: Colors.grey[400]),
+            const SizedBox(height: 4),
+            Text(
+              'Add',
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoThumbnail(int index) {
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            image: DecorationImage(
+              image: AssetImage('assets/placeholder.jpg'), // TODO: Use actual image
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        if (index == 0)
+          Positioned(
+            top: 4,
+            left: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Cover',
+                style: TextStyle(color: Colors.white, fontSize: 8),
+              ),
+            ),
+          ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: () => _removeImage(index),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClothingFields() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        const Text(
+          'Clothing Details',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // Gender
+        DropdownButtonFormField<String>(
+          value: _selectedGender,
+          decoration: InputDecoration(
+            labelText: 'Gender',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: _genders.map((gender) {
+            return DropdownMenuItem(
+              value: gender,
+              child: Text(gender),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedGender = value;
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Size
+        DropdownButtonFormField<String>(
+          value: _sizeController.text.isEmpty ? null : _sizeController.text,
+          decoration: InputDecoration(
+            labelText: 'Size',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          items: _sizes.map((size) {
+            return DropdownMenuItem(
+              value: size,
+              child: Text(size),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _sizeController.text = value ?? '';
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildElectronicsFields() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        const Text(
+          'Electronics Details',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // Model/Year
+        TextFormField(
+          decoration: InputDecoration(
+            labelText: 'Model/Year',
+            hintText: 'e.g., iPhone 11, 2020 model',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFurnitureFields() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        const Text(
+          'Furniture Details',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // Dimensions
+        TextFormField(
+          decoration: InputDecoration(
+            labelText: 'Dimensions',
+            hintText: 'e.g., 120cm x 60cm x 75cm',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ========== STEP 3: PRICING & LOCATION ==========
+  Widget _buildPricingAndLocationStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Price
+        const Text(
+          'Price *',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _priceController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            prefixText: '₹ ',
+            hintText: '0.00',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter price';
+            }
+            if (double.tryParse(value) == null) {
+              return 'Please enter a valid number';
+            }
+            if (double.parse(value) <= 0) {
+              return 'Price must be greater than 0';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Original Price (Optional)
+        TextFormField(
+          controller: _originalPriceController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Original Price (Optional)',
+            prefixText: '₹ ',
+            hintText: 'Show discount',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+        ),
+        const SizedBox(height: 15),
+
+        // Negotiable
+        SwitchListTile(
+          title: const Text('Price is negotiable'),
+          value: _isNegotiable,
+          onChanged: (value) {
+            setState(() {
+              _isNegotiable = value;
+            });
+          },
+          secondary: const Icon(Icons.attach_money),
+        ),
+        const SizedBox(height: 20),
+
+        // Location
+        const Text(
+          'Pickup Location *',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _locationController,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.location_on),
+            hintText: 'Enter your city/locality',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter location';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 15),
+
+        // Shipping
+        SwitchListTile(
+          title: const Text('I can ship this item'),
+          subtitle: const Text('Buyer pays shipping'),
+          value: _canShip,
+          onChanged: (value) {
+            setState(() {
+              _canShip = value;
+            });
+          },
+          secondary: const Icon(Icons.local_shipping),
+        ),
+      ],
+    );
+  }
+
+  // ========== STEP 4: REVIEW ==========
+  Widget _buildReviewStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Photos Preview
+        const Text(
+          'Photos',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _selectedImages.isEmpty ? 1 : _selectedImages.length,
+            itemBuilder: (context, index) {
+              return Container(
+                width: 80,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: _selectedImages.isEmpty
+                      ? const Icon(Icons.image_not_supported)
+                      : const Icon(Icons.image),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Product Details Summary
+        _buildReviewItem('Title', _titleController.text),
+        _buildReviewItem('Category', _selectedCategory ?? 'Not selected'),
+        _buildReviewItem('Condition', _selectedCondition ?? 'Not selected'),
+        _buildReviewItem('Price', '₹ ${_priceController.text}'),
+        if (_originalPriceController.text.isNotEmpty)
+          _buildReviewItem('Original Price', '₹ ${_originalPriceController.text}'),
+        if (_brandController.text.isNotEmpty)
+          _buildReviewItem('Brand', _brandController.text),
+        if (_sizeController.text.isNotEmpty)
+          _buildReviewItem('Size', _sizeController.text),
+        _buildReviewItem('Location', _locationController.text),
+        _buildReviewItem('Shipping', _canShip ? 'Available' : 'Not available'),
+        _buildReviewItem('Negotiable', _isNegotiable ? 'Yes' : 'No'),
+
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.green.withAlpha(13),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.green.withAlpha(77)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info, color: Colors.green),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'By posting, you agree to our Terms of Service and confirm that this item complies with our selling guidelines.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReviewItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== BOTTOM BUTTONS ==========
+  Widget _buildBottomButtons() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha(26),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_currentStep > 0)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(() {
+                    _currentStep--;
+                  });
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+                child: const Text('Back'),
+              ),
+            ),
+          if (_currentStep > 0) const SizedBox(width: 15),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                if (_currentStep == 3) {
+                  _submitForm();
+                } else if (_validateCurrentStep()) {
+                  setState(() {
+                    _currentStep++;
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: Text(_currentStep == 3 ? 'Post Listing' : 'Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========== HELPER FUNCTIONS ==========
+  bool _validateCurrentStep() {
+    switch (_currentStep) {
+      case 0:
+        return _formKey.currentState?.validate() ?? false;
+      case 1:
+        if (_selectedImages.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please add at least 1 photo'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        return true;
+      case 2:
+        if (_locationController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter pickup location'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImages();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _takePhoto();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showExitConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Discard Listing?'),
+          content: const Text('Your progress will be lost. Are you sure?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Continue Editing'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Go back
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Discard'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Color _getConditionColor(String condition) {
+    switch (condition) {
+      case 'Like New':
+        return Colors.green;
+      case 'Excellent':
+        return Colors.teal;
+      case 'Good':
+        return Colors.blue;
+      case 'Fair':
+        return Colors.orange;
+      case 'Needs Repair':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+}
