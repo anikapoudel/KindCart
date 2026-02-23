@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:kindcart/screens/addproduct_screen.dart';
 import 'about_screen.dart';
+import 'shop_screen.dart';
+import 'adddonation_screen.dart';
+
 import 'package:provider/provider.dart';
 import '../theme_provider.dart';
 class HomeScreen extends StatefulWidget {
@@ -151,8 +155,14 @@ class HomeScreenState extends State<HomeScreen> {
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.shopping_bag),
                           label: const Text('Shop Now'),
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ShopScreen(), // change if name different
+                              ),
+                            );
+                          },                          style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 15),
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.green,
@@ -164,8 +174,14 @@ class HomeScreenState extends State<HomeScreen> {
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.volunteer_activism),
                           label: const Text('Donate'),
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AddDonationScreen(),
+                              ),
+                            );
+                          },                          style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 15),
                             backgroundColor: Colors.transparent,
                             side: const BorderSide(color: Colors.white),
