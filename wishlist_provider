@@ -1,0 +1,123 @@
+// lib/providers/wishlist_provider.dart
+import 'package:flutter/material.dart';
+
+class WishlistProvider extends ChangeNotifier {
+  List<Map<String, dynamic>> _items = [];
+
+  // Sample data for demonstration
+  WishlistProvider() {
+    // Add some sample items for testing
+    _items = [
+      {
+        'name': 'Denim Jacket',
+        'price': '\$25',
+        'image': '👕',
+        'category': 'Clothing',
+        'seller': 'Emma W.',
+        'rating': 4.8,
+        'condition': 'Like New',
+        'isSold': false,
+        'addedDate': DateTime.now().subtract(const Duration(days: 1)),
+      },
+      {
+        'name': 'Wooden Chair',
+        'price': '\$45',
+        'image': '🪑',
+        'category': 'Furniture',
+        'seller': 'Mike R.',
+        'rating': 4.5,
+        'condition': 'Good',
+        'isSold': false,
+        'addedDate': DateTime.now().subtract(const Duration(days: 3)),
+      },
+      {
+        'name': 'Story Books Set',
+        'price': '\$10',
+        'image': '📚',
+        'category': 'Books',
+        'seller': 'Sarah K.',
+        'rating': 4.9,
+        'condition': 'Excellent',
+        'isSold': true,
+        'addedDate': DateTime.now().subtract(const Duration(days: 5)),
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> get items => _items;
+
+  int get itemCount => _items.length;
+
+  bool isInWishlist(String itemName) {
+    return _items.any((item) => item['name'] == itemName);
+  }
+
+  void addItem(Map<String, dynamic> item) {
+    // Add timestamp
+    item['addedDate'] = DateTime.now();
+    _items.add(item);
+    notifyListeners();
+  }
+
+  void removeItem(int index) {
+    if (index >= 0 && index < _items.length) {
+      _items.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  void removeItemByName(String itemName) {
+    _items.removeWhere((item) => item['name'] == itemName);
+    notifyListeners();
+  }
+
+  void clearWishlist() {
+    _items.clear();
+    notifyListeners();
+  }
+
+  void sortItems(String sortBy) {
+    switch (sortBy) {
+      case 'newest':
+        _items.sort((a, b) {
+          DateTime dateA = a['addedDate'] ?? DateTime.now();
+          DateTime dateB = b['addedDate'] ?? DateTime.now();
+          return dateB.compareTo(dateA);
+        });
+        break;
+      case 'price_low':
+        _items.sort((a, b) {
+          double priceA = _extractPrice(a['price'] ?? '\$0');
+          double priceB = _extractPrice(b['price'] ?? '\$0');
+          return priceA.compareTo(priceB);
+        });
+        break;
+      case 'price_high':
+        _items.sort((a, b) {
+          double priceA = _extractPrice(a['price'] ?? '\$0');
+          double priceB = _extractPrice(b['price'] ?? '\$0');
+          return priceB.compareTo(priceA);
+        });
+        break;
+      case 'name':
+        _items.sort((a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''));
+        break;
+    }
+    notifyListeners();
+  }
+
+  double _extractPrice(String priceString) {
+    // Remove currency symbols and convert to double
+    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
+    return double.tryParse(numericString) ?? 0.0;
+  }
+
+  // Toggle item (add if not exists, remove if exists)
+  void toggleWishlist(Map<String, dynamic> item) {
+    if (isInWishlist(item['name'])) {
+      removeItemByName(item['name']);
+    } else {
+      addItem(item);
+    }
+  }
+}
