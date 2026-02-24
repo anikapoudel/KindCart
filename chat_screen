@@ -1,0 +1,223 @@
+// lib/screens/chat_screen.dart
+import 'package:flutter/material.dart';
+
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final List<Map<String, dynamic>> _messages = [
+    {
+      'isUser': false,
+      'message': 'Hello! I\'m your KindCart assistant. How can I help you today?',
+      'time': '10:00 AM',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AI Assistant'),
+        backgroundColor: Colors.purple,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _clearChat,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Quick Actions
+          Container(
+            padding: const EdgeInsets.all(10),
+            color: Colors.purple.withAlpha(13),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildQuickAction('Donate Items'),
+                  _buildQuickAction('How to sell'),
+                  _buildQuickAction('Shipping info'),
+                  _buildQuickAction('Account help'),
+                ],
+              ),
+            ),
+          ),
+
+          // Messages
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                return _buildMessageBubble(
+                  message['message'],
+                  message['isUser'],
+                  message['time'],
+                );
+              },
+            ),
+          ),
+
+          // Input Field
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withAlpha(26),
+                  blurRadius: 10,
+                  offset: const Offset(0, -5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Type your message...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                CircleAvatar(
+                  backgroundColor: Colors.purple,
+                  child: IconButton(
+                    icon: const Icon(Icons.send, color: Colors.white),
+                    onPressed: _sendMessage,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAction(String text) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        label: Text(text),
+        onPressed: () {
+          _messageController.text = text;
+          _sendMessage();
+        },
+        backgroundColor: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(String message, bool isUser, String time) {
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: isUser ? Colors.purple : Colors.grey[200],
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isUser ? 16 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 16),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: TextStyle(
+                color: isUser ? Colors.white : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              time,
+              style: TextStyle(
+                fontSize: 10,
+                color: isUser ? Colors.white70 : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _sendMessage() {
+    if (_messageController.text.trim().isEmpty) return;
+
+    setState(() {
+      _messages.add({
+        'isUser': true,
+        'message': _messageController.text,
+        'time': 'Just now',
+      });
+
+      // Simulate AI response
+      Future.delayed(const Duration(seconds: 1), () {
+        setState(() {
+          _messages.add({
+            'isUser': false,
+            'message': _getAIResponse(_messageController.text),
+            'time': 'Just now',
+          });
+        });
+      });
+    });
+
+    _messageController.clear();
+  }
+
+  String _getAIResponse(String query) {
+    // Simple response logic - will be replaced with actual AI
+    if (query.toLowerCase().contains('donate')) {
+      return 'To donate items, go to the Donate section and click "Start New Donation". You can list clothing, books, electronics, and more!';
+    } else if (query.toLowerCase().contains('sell')) {
+      return 'To sell items, tap on the + button and select "Sell Item". Add photos, description, and price to list your item.';
+    } else if (query.toLowerCase().contains('ship')) {
+      return 'Shipping options depend on the seller. Some offer shipping, others prefer local pickup. Check the item details for shipping info.';
+    } else {
+      return 'I can help you with donations, selling items, shipping info, account settings, and more. What would you like to know?';
+    }
+  }
+
+  void _clearChat() {
+    setState(() {
+      _messages.clear();
+      _messages.add({
+        'isUser': false,
+        'message': 'Chat cleared! How can I help you?',
+        'time': 'Just now',
+      });
+    });
+  }
+}
