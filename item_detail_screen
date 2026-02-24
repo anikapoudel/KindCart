@@ -1,600 +1,717 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-class ItemDetailScreen extends StatefulWidget {
+class ItemDetailScreen extends StatelessWidget {
   final Map<String, dynamic> item;
 
   const ItemDetailScreen({super.key, required this.item});
 
   @override
-  State<ItemDetailScreen> createState() => _ItemDetailScreenState();
-}
-
-class _ItemDetailScreenState extends State<ItemDetailScreen> {
-  bool _isFavorite = false;
-  int _quantity = 1;
-  int _selectedImageIndex = 0;
-
-  // Mock item images (replace with actual URLs later)
-  final List<String> _itemImages = [
-    'https://images.unsplash.com/photo-1544441893-675973e31985',
-    'https://images.unsplash.com/photo-1505022610485-0249ba5b3675',
-    'https://images.unsplash.com/photo-1552374196-c4e7ffc6e126',
-  ];
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Item Details'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: _isFavorite ? Colors.red : null,
-            ),
-            onPressed: () {
-              setState(() {
-                _isFavorite = !_isFavorite;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    _isFavorite
-                        ? 'Added to favorites!'
-                        : 'Removed from favorites',
+      body: CustomScrollView(
+        slivers: [
+          // Custom Sliver App Bar with image
+          SliverAppBar(
+            expandedHeight: 300,
+            floating: false,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Item Image/Emoji
+                  Container(
+                    color: Colors.grey.shade200,
+                    child: Center(
+                      child: Text(
+                        item['image'] ?? '📦',
+                        style: const TextStyle(fontSize: 100),
+                      ),
+                    ),
                   ),
+                  // Gradient overlay for better text visibility
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withAlpha(100),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(200),
+                  shape: BoxShape.circle,
                 ),
-              );
-            },
+                child: const Icon(Icons.arrow_back, color: Colors.black),
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              // Favorite button
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(200),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.favorite_border, color: Colors.red, size: 22),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${item['name']} added to wishlist'),
+                      duration: const Duration(seconds: 1),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+              ),
+              // Share button
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(200),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.share, color: Colors.blue, size: 22),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Share feature coming soon!'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: _shareItem,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Gallery
-            _buildImageGallery(),
-            
-            // Item Details
-            Padding(
+
+          // Item Details Content
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title and Price
+                  // Category & Condition Chips
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withAlpha(20),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getCategoryIcon(item['category'] ?? 'Other'),
+                              size: 14,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              item['category'] ?? 'Category',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getConditionColor(item['condition'] ?? 'Good').withAlpha(20),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _getConditionColor(item['condition'] ?? 'Good'),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              item['condition'] ?? 'Good',
+                              style: TextStyle(
+                                color: _getConditionColor(item['condition'] ?? 'Good'),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  // Title
+                  Text(
+                    item['name'] ?? 'Item Name',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Seller Info and Rating
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Colors.green.shade100,
                         child: Text(
-                          widget.item['name'] ?? 'Product Name',
+                          item['seller']?[0] ?? 'U',
                           style: const TextStyle(
-                            fontSize: 24,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            color: Colors.green,
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
-                        widget.item['price'] ?? '\$0',
+                        item['seller'] ?? 'Unknown Seller',
                         style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  // Category and Condition
-                  Row(
-                    children: [
-                      _buildInfoChip(
-                        icon: Icons.category,
-                        label: widget.item['category'] ?? 'Category',
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 4,
+                        height: 4,
+                        decoration: const BoxDecoration(
+                          color: Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      _buildInfoChip(
-                        icon: Icons.verified,
-                        label: widget.item['condition'] ?? 'Good Condition',
+                      const Icon(Icons.star, size: 16, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        item['rating']?.toString() ?? '4.5',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
-                  // Description
+
+                  // Price Section
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withAlpha(8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withAlpha(30)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Price',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item['price'] ?? '\$0',
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withAlpha(20),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Negotiable',
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // Description Section
                   const Text(
                     'Description',
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
-                    widget.item['description'] ?? 
-                    'This is a high-quality second-hand item in excellent condition. '
-                    'Perfect for those looking for sustainable shopping options.',
+                    item['description'] ??
+                        'This is a high-quality item in excellent condition. Perfect for anyone looking for sustainable options. All items are cleaned and sanitized before listing.',
+                    style: const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // Details Section
+                  const Text(
+                    'Item Details',
                     style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                      height: 1.5,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  
+                  const SizedBox(height: 15),
+
+                  // Details Grid
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildDetailRow(Icons.branding_watermark, 'Brand', item['brand'] ?? 'Generic'),
+                        const Divider(height: 20),
+                        _buildDetailRow(Icons.straighten, 'Size', item['size'] ?? 'M'),
+                        const Divider(height: 20),
+                        _buildDetailRow(Icons.palette, 'Color', item['color'] ?? 'Black'),
+                        const Divider(height: 20),
+                        _buildDetailRow(Icons.location_on, 'Location', item['location'] ?? 'Kathmandu'),
+                        const Divider(height: 20),
+                        _buildDetailRow(Icons.calendar_today, 'Listed', 'Today'),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 25),
-                  
-                  // Seller Info
-                  _buildSellerInfo(),
-                  
+
+                  // Shipping Info
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withAlpha(8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withAlpha(30)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withAlpha(20),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.local_shipping, color: Colors.blue),
+                        ),
+                        const SizedBox(width: 15),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Shipping Available',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Seller can ship this item (buyer pays shipping)',
+                                style: TextStyle(color: Colors.grey, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 25),
-                  
-                  // Quantity Selector
-                  if (widget.item['type'] == 'product') _buildQuantitySelector(),
-                  
-                  // Item Stats
-                  _buildItemStats(),
-                  
+
+                  // Seller Contact Card
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(15),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Seller Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.green.shade100,
+                                child: Text(
+                                  item['seller']?[0] ?? 'U',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['seller'] ?? 'Unknown Seller',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.star, size: 16, color: Colors.amber),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${item['rating'] ?? 4.5} (128 reviews)',
+                                          style: const TextStyle(color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Member since 2024',
+                                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 15),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Messaging feature coming soon!'),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.message),
+                                  label: const Text('Message'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Contacting ${item['seller'] ?? 'seller'}...'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.phone),
+                                  label: const Text('Contact'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  // Safety Tips
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withAlpha(8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withAlpha(30)),
+                    ),
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.security, color: Colors.amber, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Safety Tips',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 10),
+                        Text('• Inspect the item before purchase'),
+                        Text('• Meet in a public place for exchange'),
+                        Text('• Use secure payment methods'),
+                        Text('• Trust your instincts'),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 30),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+
+      // Bottom Action Bar
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withAlpha(26),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
           ],
         ),
-      ),
-      bottomNavigationBar: _buildBottomBar(),
-    );
-  }
-
-  Widget _buildImageGallery() {
-    return Column(
-      children: [
-        Container(
-          height: 300,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            image: DecorationImage(
-              image: NetworkImage(_itemImages[_selectedImageIndex]),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: Stack(
+        child: SafeArea(
+          child: Row(
             children: [
-              // Image Indicators
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _itemImages.length,
-                    (index) => Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _selectedImageIndex == index
-                            ? Colors.white
-                            : Colors.white.withOpacity(0.5),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              
-              // Image Navigation
-              if (_itemImages.length > 1)
-                Positioned(
-                  left: 10,
-                  top: 0,
-                  bottom: 0,
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    onPressed: () {
-                      setState(() {
-                        _selectedImageIndex = (_selectedImageIndex - 1)
-                            .clamp(0, _itemImages.length - 1);
-                      });
-                    },
-                  ),
-                ),
-              
-              if (_itemImages.length > 1)
-                Positioned(
-                  right: 10,
-                  top: 0,
-                  bottom: 0,
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    onPressed: () {
-                      setState(() {
-                        _selectedImageIndex = (_selectedImageIndex + 1)
-                            .clamp(0, _itemImages.length - 1);
-                      });
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
-        
-        // Thumbnail Images
-        if (_itemImages.length > 1)
-          Container(
-            height: 80,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _itemImages.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedImageIndex = index;
-                    });
-                  },
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _selectedImageIndex == index
-                            ? Colors.green
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                      image: DecorationImage(
-                        image: NetworkImage(_itemImages[index]),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildInfoChip({required IconData icon, required String label}) {
-    return Chip(
-      avatar: Icon(icon, size: 16),
-      label: Text(label),
-      backgroundColor: Colors.green[50],
-    );
-  }
-
-  Widget _buildSellerInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Seller Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: Colors.green[100],
-                  child: const Icon(
-                    Icons.person,
-                    size: 30,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'John Doe',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 16),
-                          const SizedBox(width: 4),
-                          const Text('4.8'),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text('50+ sales'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline),
+              // Message Button
+              Expanded(
+                child: OutlinedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ChatScreen(),
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Messaging feature coming soon!'),
                       ),
                     );
                   },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.phone),
-                    label: const Text('Call'),
-                    onPressed: () => _launchPhone('+977-9867545678'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    side: const BorderSide(color: Colors.green),
+                    foregroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                   ),
+                  child: const Text('Message'),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.location_on),
-                    label: const Text('Location'),
-                    onPressed: () => _launchMaps('Kathmandu, Nepal'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuantitySelector() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Quantity',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: _quantity > 1
-                      ? () {
-                          setState(() {
-                            _quantity--;
-                          });
-                        }
-                      : null,
-                ),
-                Container(
-                  width: 50,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$_quantity',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
+              const SizedBox(width: 15),
+              // Buy Now Button
+              Expanded(
+                child: ElevatedButton(
                   onPressed: () {
-                    setState(() {
-                      _quantity++;
-                    });
+                    _showPurchaseDialog(context);
                   },
-                ),
-                const Spacer(),
-                Text(
-                  'Total: \$${(double.parse(widget.item['price']?.replaceAll('\$', '') ?? '0') * _quantity).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
                   ),
+                  child: const Text('Buy Now'),
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemStats() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildStatItem(Icons.remove_red_eye, '245', 'Views'),
-            _buildStatItem(Icons.favorite_border, '45', 'Likes'),
-            _buildStatItem(Icons.access_time, '2', 'Days Listed'),
-            _buildStatItem(Icons.shopping_cart, '3', 'In Cart'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(IconData icon, String value, String label) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.green),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
+      ),
+    );
+  }
+
+  // Helper Methods
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Colors.grey[600]),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBottomBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Add to Cart Button
-          Expanded(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.shopping_cart),
-              label: const Text('Add to Cart'),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Item added to cart!'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.green,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          
-          // Buy Now Button
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CheckoutScreen(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.orange,
-              ),
-              child: const Text('Buy Now'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _launchPhone(String phone) async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: phone);
-    if (!await launchUrl(phoneUri)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not launch phone')),
-      );
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'clothing':
+        return Icons.checkroom;
+      case 'electronics':
+        return Icons.phone_android;
+      case 'furniture':
+        return Icons.chair;
+      case 'books':
+        return Icons.menu_book;
+      case 'toys':
+        return Icons.toys;
+      case 'sports':
+        return Icons.sports_soccer;
+      default:
+        return Icons.category;
     }
   }
 
-  Future<void> _launchMaps(String address) async {
-    final Uri mapUri = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
-    );
-    if (!await launchUrl(mapUri)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not launch maps')),
-      );
+  Color _getConditionColor(String condition) {
+    switch (condition.toLowerCase()) {
+      case 'like new':
+        return Colors.green;
+      case 'excellent':
+        return Colors.teal;
+      case 'good':
+        return Colors.blue;
+      case 'fair':
+        return Colors.orange;
+      case 'needs repair':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
-  void _shareItem() {
-    // For now, just show a message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sharing feature coming soon!')),
-    );
-  }
-}
-
-// Temporary placeholder screens (create these files separately)
-class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Chat')),
-      body: const Center(child: Text('Chat screen coming soon')),
-    );
-  }
-}
-
-class CheckoutScreen extends StatelessWidget {
-  const CheckoutScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
-      body: const Center(child: Text('Checkout screen coming soon')),
+  void _showPurchaseDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Purchase'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('You are about to purchase:'),
+            const SizedBox(height: 10),
+            Text(
+              item['name'] ?? 'Item',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 5),
+            Text('Price: ${item['price'] ?? '\$0'}'),
+            const SizedBox(height: 15),
+            const Text(
+              'This is a demo version. In the full app, you would proceed to payment.',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Demo: Purchase initiated for ${item['name']}'),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue (Demo)'),
+          ),
+        ],
+      ),
     );
   }
 }
