@@ -1,0 +1,203 @@
+// lib/screens/search_screen.dart
+import 'package:flutter/material.dart';
+
+class SearchScreen extends StatefulWidget {
+  const SearchScreen({super.key});
+
+  @override
+  State<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends State<SearchScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final List<String> _recentSearches = [
+    'jacket',
+    'books',
+    'furniture',
+    'electronics',
+  ];
+
+  final List<Map<String, dynamic>> _trendingItems = [
+    {'name': 'Winter Jackets', 'count': 24},
+    {'name': 'Story Books', 'count': 18},
+    {'name': 'Coffee Tables', 'count': 12},
+    {'name': 'Smartphones', 'count': 9},
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Search'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search for items...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                  },
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: (value) {
+                // Perform search
+              },
+            ),
+          ),
+
+          // Filter Chips
+          SizedBox(
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _buildFilterChip('All', true),
+                _buildFilterChip('Clothing', false),
+                _buildFilterChip('Electronics', false),
+                _buildFilterChip('Furniture', false),
+                _buildFilterChip('Books', false),
+                _buildFilterChip('Toys', false),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // Recent Searches
+                if (_recentSearches.isNotEmpty) ...[
+                  const Text(
+                    'Recent Searches',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _recentSearches.map((search) {
+                      return Chip(
+                        label: Text(search),
+                        deleteIcon: const Icon(Icons.close, size: 18),
+                        onDeleted: () {
+                          setState(() {
+                            _recentSearches.remove(search);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Trending Searches
+                const Text(
+                  'Trending Searches',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._trendingItems.map((item) {
+                  return ListTile(
+                    leading: const Icon(Icons.trending_up, color: Colors.green),
+                    title: Text(item['name']),
+                    trailing: Text(
+                      '${item['count']} items',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    onTap: () {
+                      _searchController.text = item['name'];
+                    },
+                  );
+                }).toList(),
+
+                const SizedBox(height: 20),
+
+                // Categories
+                const Text(
+                  'Browse Categories',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  childAspectRatio: 1.2,
+                  children: [
+                    _buildCategoryTile(Icons.checkroom, 'Clothing'),
+                    _buildCategoryTile(Icons.menu_book, 'Books'),
+                    _buildCategoryTile(Icons.phone_android, 'Electronics'),
+                    _buildCategoryTile(Icons.chair, 'Furniture'),
+                    _buildCategoryTile(Icons.toys, 'Toys'),
+                    _buildCategoryTile(Icons.sports, 'Sports'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, bool isSelected) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (selected) {},
+        backgroundColor: Colors.grey[200],
+        selectedColor: Colors.green,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile(IconData icon, String label) {
+    return Card(
+      child: InkWell(
+        onTap: () {},
+        borderRadius: BorderRadius.circular(8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.green),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
