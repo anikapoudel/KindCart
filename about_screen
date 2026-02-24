@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:kindcart/screens/adddonation_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'auth_screen.dart'; // Make sure to import these screens
 import 'donate_screen.dart';
@@ -350,7 +351,7 @@ class AboutScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const DonateScreen(),
+                        builder: (context) => const AddDonationScreen(),
                       ),
                     );
                   },
