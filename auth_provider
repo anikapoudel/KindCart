@@ -1,0 +1,274 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class AuthProvider extends ChangeNotifier {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? _user;
+  String? _userRole;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  // Getters
+  User? get user => _user;
+  String? get userRole => _userRole;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  bool get isAuthenticated => _user != null;
+
+  AuthProvider() {
+    _auth.authStateChanges().listen(_onAuthStateChanged);
+  }
+
+  // Listen to auth state changes
+  Future<void> _onAuthStateChanged(User? user) async {
+    _user = user;
+    if (user != null) {
+      await _loadUserRole(user.uid);
+    } else {
+      _userRole = null;
+    }
+    notifyListeners();
+  }
+
+  // Load user role from Firestore
+  Future<void> _loadUserRole(String uid) async {
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        _userRole = doc.data()?['role'];
+      }
+    } catch (e) {
+      debugPrint('Error loading user role: $e');
+    }
+  }
+
+  // Sign Up with Email & Password
+  Future<bool> signUp({
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+    required String role,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      // Create user in Firebase Auth
+      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Send email verification
+        await user.sendEmailVerification();
+
+        // Create user document in Firestore
+        await _firestore.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'email': email.trim(),
+          'name': name.trim(),
+          'phone': phone.trim(),
+          'role': role,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'isActive': true,
+          'profileComplete': true,
+          'emailVerified': false,
+        });
+
+        _userRole = role;
+        _setLoading(false);
+        return true;
+      }
+
+      _setLoading(false);
+      return false;
+    } on FirebaseAuthException catch (e) {
+      _handleAuthError(e);
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Login with Email & Password
+  Future<bool> signIn({
+    required String email,
+    required String password,
+  }) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Update last login
+        await _firestore.collection('users').doc(user.uid).update({
+          'lastLogin': FieldValue.serverTimestamp(),
+        });
+
+        await _loadUserRole(user.uid);
+        _setLoading(false);
+        return true;
+      }
+
+      _setLoading(false);
+      return false;
+    } on FirebaseAuthException catch (e) {
+      _handleAuthError(e);
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Sign Out
+  Future<void> signOut() async {
+    _setLoading(true);
+    try {
+      await _auth.signOut();
+      _userRole = null;
+      _setLoading(false);
+    } catch (e) {
+      _errorMessage = 'Error signing out';
+      _setLoading(false);
+    }
+  }
+
+  // Send Password Reset Email
+  Future<bool> resetPassword(String email) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+      _setLoading(false);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _handleAuthError(e);
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Email Verification
+  Future<bool> sendVerificationEmail() async {
+    _setLoading(true);
+    try {
+      await _user?.sendEmailVerification();
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to send verification email';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Check if email is verified
+  bool get isEmailVerified {
+    return _user?.emailVerified ?? false;
+  }
+
+  // Reload user to get updated verification status
+  Future<void> reloadUser() async {
+    await _user?.reload();
+    _user = _auth.currentUser;
+    notifyListeners();
+  }
+
+  // Update user profile
+  Future<bool> updateUserProfile({
+    String? name,
+    String? phone,
+    String? role,
+  }) async {
+    if (_user == null) return false;
+
+    _setLoading(true);
+    try {
+      Map<String, dynamic> updates = {};
+      if (name != null) updates['name'] = name;
+      if (phone != null) updates['phone'] = phone;
+      if (role != null) updates['role'] = role;
+
+      if (updates.isNotEmpty) {
+        await _firestore.collection('users').doc(_user!.uid).update(updates);
+        if (role != null) _userRole = role;
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to update profile';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Helper Methods
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _errorMessage = null;
+  }
+
+  void _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        _errorMessage = 'This email is already registered';
+        break;
+      case 'invalid-email':
+        _errorMessage = 'Invalid email address';
+        break;
+      case 'weak-password':
+        _errorMessage = 'Password is too weak';
+        break;
+      case 'user-not-found':
+        _errorMessage = 'No user found with this email';
+        break;
+      case 'wrong-password':
+        _errorMessage = 'Incorrect password';
+        break;
+      case 'user-disabled':
+        _errorMessage = 'This account has been disabled';
+        break;
+      case 'too-many-requests':
+        _errorMessage = 'Too many attempts. Please try again later';
+        break;
+      case 'network-request-failed':
+        _errorMessage = 'Network error. Check your connection';
+        break;
+      default:
+        _errorMessage = 'Authentication failed: ${e.message}';
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+}
