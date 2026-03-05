@@ -1,0 +1,84 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Stream of auth state changes
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Get current user
+  User? get currentUser => _auth.currentUser;
+
+  // Sign up with email and password
+  Future<UserCredential> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    return await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  // Sign in with email and password
+  Future<UserCredential> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    return await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+  }
+
+  // Sign out
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  // Reset password
+  Future<void> resetPassword(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  // Create user document in Firestore
+  Future<void> createUserDocument({
+    required String uid,
+    required String email,
+    required String name,
+    required String phone,
+    required String role,
+  }) async {
+    await _firestore.collection('users').doc(uid).set({
+      'uid': uid,
+      'email': email,
+      'name': name,
+      'phone': phone,
+      'role': role,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastLogin': FieldValue.serverTimestamp(),
+      'isActive': true,
+      'profileComplete': true,
+      'emailVerified': false,
+    });
+  }
+
+  // Get user data from Firestore
+  Future<DocumentSnapshot> getUserData(String uid) async {
+    return await _firestore.collection('users').doc(uid).get();
+  }
+
+  // Update user data
+  Future<void> updateUserData(String uid, Map<String, dynamic> data) async {
+    await _firestore.collection('users').doc(uid).update(data);
+  }
+
+  // Update last login
+  Future<void> updateLastLogin(String uid) async {
+    await _firestore.collection('users').doc(uid).update({
+      'lastLogin': FieldValue.serverTimestamp(),
+    });
+  }
+}
