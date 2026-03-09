@@ -2,26 +2,42 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserModel {
   final String uid;
   final String email;
-  final String fullName;
-  final String? phoneNumber;
-  final String role; // 'buyer', 'seller', 'donor', 'admin'
+  final String name;
+  final String? phone;
+  final String role;
   final bool isVerified;
   final DateTime createdAt;
   final String? profileImageUrl;
   final Map<String, dynamic>? preferences;
-  final int donationPoints; // For donor rewards
-  final int sellerRating; // For sellers
+
+  // Seller-specific fields
+  final bool sellerApproved;
+  final bool sellerApprovalRequested;
+  final DateTime? sellerApprovedAt;
+  final String? approvedBy;
+  final String? sellerRejectionReason;
+
+  // Donor-specific fields
+  final int donationPoints;
+
+  // Buyer/Seller fields
+  final int sellerRating;
 
   UserModel({
     required this.uid,
     required this.email,
-    required this.fullName,
-    this.phoneNumber,
+    required this.name,
+    this.phone,
     required this.role,
     this.isVerified = false,
     required this.createdAt,
     this.profileImageUrl,
     this.preferences,
+    this.sellerApproved = false,
+    this.sellerApprovalRequested = false,
+    this.sellerApprovedAt,
+    this.approvedBy,
+    this.sellerRejectionReason,
     this.donationPoints = 0,
     this.sellerRating = 0,
   });
@@ -30,13 +46,18 @@ class UserModel {
     return {
       'uid': uid,
       'email': email,
-      'fullName': fullName,
-      'phoneNumber': phoneNumber,
+      'name': name,
+      'phone': phone,
       'role': role,
       'isVerified': isVerified,
       'createdAt': createdAt,
       'profileImageUrl': profileImageUrl,
       'preferences': preferences,
+      'sellerApproved': sellerApproved,
+      'sellerApprovalRequested': sellerApprovalRequested,
+      'sellerApprovedAt': sellerApprovedAt,
+      'approvedBy': approvedBy,
+      'sellerRejectionReason': sellerRejectionReason,
       'donationPoints': donationPoints,
       'sellerRating': sellerRating,
     };
@@ -46,13 +67,20 @@ class UserModel {
     return UserModel(
       uid: uid,
       email: map['email'] ?? '',
-      fullName: map['fullName'] ?? '',
-      phoneNumber: map['phoneNumber'],
-      role: map['role'] ?? 'buyer',
-      isVerified: map['isVerified'] ?? false,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      name: map['name'] ?? '',
+      phone: map['phone'],
+      role: map['role'] ?? 'Buyer',
+      isVerified: map['isVerified'] ?? map['emailVerified'] ?? false,
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       profileImageUrl: map['profileImageUrl'],
       preferences: map['preferences'],
+      sellerApproved: map['sellerApproved'] ?? false,
+      sellerApprovalRequested: map['sellerApprovalRequested'] ?? false,
+      sellerApprovedAt: map['sellerApprovedAt'] != null
+          ? (map['sellerApprovedAt'] as Timestamp).toDate()
+          : null,
+      approvedBy: map['approvedBy'],
+      sellerRejectionReason: map['sellerRejectionReason'],
       donationPoints: map['donationPoints'] ?? 0,
       sellerRating: map['sellerRating'] ?? 0,
     );
