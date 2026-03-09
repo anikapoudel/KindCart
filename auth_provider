@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -10,6 +11,7 @@ class AuthProvider extends ChangeNotifier {
   String? _userRole;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isEmailVerified = false;
 
   // Getters
   User? get user => _user;
@@ -17,18 +19,32 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _user != null;
+  bool get isEmailVerified => _isEmailVerified;
 
   AuthProvider() {
     _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
-  // Listen to auth state changes
   Future<void> _onAuthStateChanged(User? user) async {
+    debugPrint('🔄 Auth state changed: ${user?.email ?? 'No user'}');
     _user = user;
+
     if (user != null) {
-      await _loadUserRole(user.uid);
+      try {
+        // Check email verification status
+        await user.reload();
+        final freshUser = _auth.currentUser;
+        _isEmailVerified = freshUser?.emailVerified ?? false;
+        debugPrint('📧 Email verified: $_isEmailVerified');
+
+        // Load user role from Firestore
+        await _loadUserRole(user.uid);
+      } catch (e) {
+        debugPrint('❌ Error in auth state change: $e');
+      }
     } else {
       _userRole = null;
+      _isEmailVerified = false;
     }
     notifyListeners();
   }
@@ -39,9 +55,38 @@ class AuthProvider extends ChangeNotifier {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists) {
         _userRole = doc.data()?['role'];
+        debugPrint('✅ User role loaded: $_userRole');
+      } else {
+        debugPrint('⚠️ User document does not exist in Firestore');
+        // Try to create the document if it doesn't exist
+        await _createUserDocument(uid);
       }
     } catch (e) {
-      debugPrint('Error loading user role: $e');
+      debugPrint('❌ Error loading user role: $e');
+    }
+  }
+
+  // Helper method to create user document
+  Future<void> _createUserDocument(String uid) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await _firestore.collection('users').doc(uid).set({
+          'uid': uid,
+          'email': user.email,
+          'name': user.displayName ?? user.email?.split('@')[0] ?? 'User',
+          'phone': '',
+          'role': 'Buyer', // Default role
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+          'isActive': true,
+          'profileComplete': false,
+          'emailVerified': user.emailVerified,
+        });
+        debugPrint('✅ Created missing user document in Firestore');
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to create missing user document: $e');
     }
   }
 
@@ -57,6 +102,8 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
+      debugPrint('📝 Attempting to create user: $email');
+
       // Create user in Firebase Auth
       final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
@@ -66,36 +113,63 @@ class AuthProvider extends ChangeNotifier {
       final User? user = userCredential.user;
 
       if (user != null) {
+        debugPrint('✅ User created in Auth: ${user.uid}');
+
         // Send email verification
         await user.sendEmailVerification();
+        debugPrint('📧 Verification email sent');
 
-        // Create user document in Firestore
-        await _firestore.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'email': email.trim(),
-          'name': name.trim(),
-          'phone': phone.trim(),
-          'role': role,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastLogin': FieldValue.serverTimestamp(),
-          'isActive': true,
-          'profileComplete': true,
-          'emailVerified': false,
-        });
+        // Create user document in Firestore with retry logic
+        bool firestoreSuccess = false;
+        int retryCount = 0;
+
+        while (!firestoreSuccess && retryCount < 3) {
+          try {
+            await _firestore.collection('users').doc(user.uid).set({
+              'uid': user.uid,
+              'email': email.trim(),
+              'name': name.trim(),
+              'phone': phone.trim(),
+              'role': role,
+              'createdAt': FieldValue.serverTimestamp(),
+              'lastLogin': FieldValue.serverTimestamp(),
+              'isActive': true,
+              'profileComplete': true,
+              'emailVerified': false,
+            });
+            firestoreSuccess = true;
+            debugPrint('✅ User document created in Firestore');
+          } catch (e) {
+            retryCount++;
+            debugPrint('❌ Error creating Firestore document (attempt $retryCount): $e');
+            if (retryCount >= 3) {
+              debugPrint('❌ Failed to create Firestore document after 3 attempts');
+            } else {
+              // Wait a bit before retrying
+              await Future.delayed(const Duration(seconds: 1));
+            }
+          }
+        }
 
         _userRole = role;
         _setLoading(false);
+
+        // Even if Firestore fails, Auth succeeded so return true
+        // The user can still login, but profile data will be missing
         return true;
       }
 
       _setLoading(false);
       return false;
     } on FirebaseAuthException catch (e) {
+      debugPrint('🔥 FirebaseAuthException in signUp: ${e.code} - ${e.message}');
       _handleAuthError(e);
       _setLoading(false);
       return false;
-    } catch (e) {
-      _errorMessage = 'An unexpected error occurred';
+    } catch (e, stackTrace) {
+      debugPrint('🔥 Unexpected error in signUp: $e');
+      debugPrint('🔥 Stack trace: $stackTrace');
+      _errorMessage = 'An unexpected error occurred. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -110,6 +184,8 @@ class AuthProvider extends ChangeNotifier {
     _clearError();
 
     try {
+      debugPrint('📝 Attempting to sign in: $email');
+
       final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
@@ -118,12 +194,42 @@ class AuthProvider extends ChangeNotifier {
       final User? user = userCredential.user;
 
       if (user != null) {
-        // Update last login
-        await _firestore.collection('users').doc(user.uid).update({
-          'lastLogin': FieldValue.serverTimestamp(),
-        });
+        //  Reload user to get latest email verification status
+        await user.reload();
+        final freshUser = _auth.currentUser;
+        final isVerified = freshUser?.emailVerified ?? false;
+
+        debugPrint('📧 Email verified status: $isVerified');
+
+        if (!isVerified) {
+          _errorMessage = 'Please verify your email before logging in. Check your inbox for the verification link.';
+          await _auth.signOut(); // Sign out since email not verified
+          _setLoading(false);
+          return false;
+        }
+
+        // Update last login and verification status in Firestore
+        try {
+          // Check if document exists first
+          final doc = await _firestore.collection('users').doc(user.uid).get();
+
+          if (doc.exists) {
+            await _firestore.collection('users').doc(user.uid).update({
+              'lastLogin': FieldValue.serverTimestamp(),
+              'emailVerified': true,
+            });
+          } else {
+            // Create document if it doesn't exist
+            await _createUserDocument(user.uid);
+          }
+          debugPrint('✅ Updated last login in Firestore');
+        } catch (e) {
+          debugPrint('⚠️ Error updating last login: $e');
+          // Don't fail the login if this fails
+        }
 
         await _loadUserRole(user.uid);
+        _isEmailVerified = true;
         _setLoading(false);
         return true;
       }
@@ -131,11 +237,14 @@ class AuthProvider extends ChangeNotifier {
       _setLoading(false);
       return false;
     } on FirebaseAuthException catch (e) {
+      debugPrint('🔥 FirebaseAuthException in signIn: ${e.code} - ${e.message}');
       _handleAuthError(e);
       _setLoading(false);
       return false;
-    } catch (e) {
-      _errorMessage = 'An unexpected error occurred';
+    } catch (e, stackTrace) {
+      debugPrint('🔥 Unexpected error in signIn: $e');
+      debugPrint('🔥 Stack trace: $stackTrace');
+      _errorMessage = 'An unexpected error occurred. Please try again.';
       _setLoading(false);
       return false;
     }
@@ -147,8 +256,11 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _auth.signOut();
       _userRole = null;
+      _isEmailVerified = false;
       _setLoading(false);
+      debugPrint('✅ User signed out');
     } catch (e) {
+      debugPrint('❌ Error signing out: $e');
       _errorMessage = 'Error signing out';
       _setLoading(false);
     }
@@ -161,39 +273,60 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
+      debugPrint('📧 Password reset email sent');
       _setLoading(false);
       return true;
     } on FirebaseAuthException catch (e) {
+      debugPrint('🔥 FirebaseAuthException in resetPassword: ${e.code} - ${e.message}');
       _handleAuthError(e);
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error in resetPassword: $e');
+      _errorMessage = 'Failed to send reset email';
       _setLoading(false);
       return false;
     }
   }
 
-  // Email Verification
+  // Send Verification Email
   Future<bool> sendVerificationEmail() async {
     _setLoading(true);
+    _clearError();
+
     try {
       await _user?.sendEmailVerification();
+      debugPrint('📧 Verification email sent');
       _setLoading(false);
       return true;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('🔥 FirebaseAuthException in sendVerificationEmail: ${e.code} - ${e.message}');
+      _handleAuthError(e);
+      _setLoading(false);
+      return false;
     } catch (e) {
+      debugPrint('❌ Error in sendVerificationEmail: $e');
       _errorMessage = 'Failed to send verification email';
       _setLoading(false);
       return false;
     }
   }
 
-  // Check if email is verified
-  bool get isEmailVerified {
-    return _user?.emailVerified ?? false;
-  }
+  // Check verification status
+  Future<bool> checkEmailVerification() async {
+    if (_user == null) return false;
 
-  // Reload user to get updated verification status
-  Future<void> reloadUser() async {
-    await _user?.reload();
-    _user = _auth.currentUser;
-    notifyListeners();
+    try {
+      await _user!.reload();
+      _user = _auth.currentUser;
+      _isEmailVerified = _user?.emailVerified ?? false;
+      notifyListeners();
+      debugPrint('📧 Email verification check: $_isEmailVerified');
+      return _isEmailVerified;
+    } catch (e) {
+      debugPrint('❌ Error checking email verification: $e');
+      return false;
+    }
   }
 
   // Update user profile
@@ -205,6 +338,8 @@ class AuthProvider extends ChangeNotifier {
     if (_user == null) return false;
 
     _setLoading(true);
+    _clearError();
+
     try {
       Map<String, dynamic> updates = {};
       if (name != null) updates['name'] = name;
@@ -212,16 +347,75 @@ class AuthProvider extends ChangeNotifier {
       if (role != null) updates['role'] = role;
 
       if (updates.isNotEmpty) {
-        await _firestore.collection('users').doc(_user!.uid).update(updates);
+        // Check if document exists first
+        final doc = await _firestore.collection('users').doc(_user!.uid).get();
+
+        if (!doc.exists) {
+          // Create the document if it doesn't exist
+          await _firestore.collection('users').doc(_user!.uid).set({
+            'uid': _user!.uid,
+            'email': _user!.email,
+            'name': name ?? _user!.displayName ?? _user!.email?.split('@')[0] ?? 'User',
+            'phone': phone ?? '',
+            'role': role ?? 'Buyer',
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLogin': FieldValue.serverTimestamp(),
+            'isActive': true,
+            'profileComplete': true,
+            'emailVerified': _user!.emailVerified,
+          });
+          debugPrint('✅ Created user document during profile update');
+        } else {
+          // Update existing document
+          await _firestore.collection('users').doc(_user!.uid).update(updates);
+          debugPrint('✅ Profile updated: $updates');
+        }
+
+        // Update display name in Firebase Auth if name changed
+        if (name != null) {
+          await _user!.updateDisplayName(name);
+        }
+
         if (role != null) _userRole = role;
       }
 
       _setLoading(false);
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to update profile';
+      debugPrint('❌ Error updating profile: $e');
+      _errorMessage = 'Failed to update profile: ${e.toString()}';
       _setLoading(false);
       return false;
+    }
+  }
+
+  // Get user data from Firestore
+  Future<Map<String, dynamic>?> getUserData() async {
+    if (_user == null) return null;
+
+    try {
+      final doc = await _firestore.collection('users').doc(_user!.uid).get();
+
+      if (doc.exists) {
+        debugPrint('✅ User data retrieved from Firestore');
+        return doc.data();
+      } else {
+        debugPrint('⚠️ User document does not exist in Firestore');
+
+        // Try to create the document if it doesn't exist
+        try {
+          await _createUserDocument(_user!.uid);
+          // Try to get it again
+          final newDoc = await _firestore.collection('users').doc(_user!.uid).get();
+          return newDoc.data();
+        } catch (e) {
+          debugPrint('❌ Failed to create missing user document: $e');
+          return null;
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting user data: $e');
+      return null;
     }
   }
 
@@ -265,10 +459,5 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = 'Authentication failed: ${e.message}';
     }
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
