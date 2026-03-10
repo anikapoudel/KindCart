@@ -1,35 +1,422 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-class ItemDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> item;
+import '../models/product_model.dart';
+import '../providers/cart_provider.dart';
+import '../providers/wishlist_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/product_provider.dart';
+
+class ItemDetailScreen extends StatefulWidget {
+  final ProductModel item;
 
   const ItemDetailScreen({super.key, required this.item});
 
   @override
+  State<ItemDetailScreen> createState() => _ItemDetailScreenState();
+}
+
+class _ItemDetailScreenState extends State<ItemDetailScreen> {
+  int _currentImageIndex = 0;
+  bool _isInWishlist = false;
+  bool _isLoading = false;
+  int _selectedQuantity = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkWishlistStatus();
+      _incrementViewCount();
+    });
+  }
+
+  Future<void> _checkWishlistStatus() async {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!authProvider.isAuthenticated) return;
+
+    final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+    final isInList = await wishlistProvider.isInWishlist(
+        authProvider.user!.uid,
+        widget.item.id
+    );
+
+    if (mounted) {
+      setState(() {
+        _isInWishlist = isInList;
+      });
+    }
+  }
+
+  Future<void> _incrementViewCount() async {
+    if (!mounted) return;
+
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      await productProvider.incrementViewCount(widget.item.id);
+    } catch (e) {
+      debugPrint('❌ Error incrementing view count: $e');
+    }
+  }
+
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Login Required'),
+        content: const Text('Please login to add items to your cart'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/auth');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addToCart() async {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isAuthenticated) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+      // Add to cart with quantity
+      cartProvider.addToCart(widget.item, quantity: _selectedQuantity);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✨ Added $_selectedQuantity item(s) to cart'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'VIEW CART',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.pushNamed(context, '/cart');
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding to cart: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleWishlist() async {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isAuthenticated) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+
+      await wishlistProvider.toggleWishlist(authProvider.user!.uid, widget.item);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isInWishlist = !_isInWishlist;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isInWishlist ? 'Added to wishlist' : 'Removed from wishlist'),
+          backgroundColor: _isInWishlist ? Colors.green : Colors.red,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _contactSeller() async {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (!authProvider.isAuthenticated) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
+    // Show contact options
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.chat, color: Colors.green),
+              title: const Text('Send Message'),
+              subtitle: Text('Chat with ${widget.item.sellerName}'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(
+                  context,
+                  '/chat',
+                  arguments: {
+                    'sellerId': widget.item.sellerId,
+                    'sellerName': widget.item.sellerName,
+                    'productId': widget.item.id,
+                    'productTitle': widget.item.title,
+                  },
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.phone, color: Colors.blue),
+              title: const Text('Call Seller'),
+              subtitle: const Text('Coming soon'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Calling feature coming soon!')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.email, color: Colors.orange),
+              title: const Text('Email Seller'),
+              subtitle: const Text('Coming soon'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Email feature coming soon!')),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareItem() async {
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.share, color: Colors.green),
+              title: const Text('Share via...'),
+              subtitle: const Text('Share this item with others'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Sharing feature coming soon!'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy, color: Colors.grey),
+              title: const Text('Copy Link'),
+              onTap: () {
+                Navigator.pop(context);
+                _copyLink();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyLink() async {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Link copied to clipboard!'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _showReportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report Item'),
+        content: const Text('Are you sure you want to report this item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Thank you for reporting. Our team will review this item.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final isOwner = authProvider.user?.uid == widget.item.sellerId;
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Custom Sliver App Bar with image
+          // Custom Sliver App Bar with image carousel
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 350,
             floating: false,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Item Image/Emoji
-                  Container(
-                    color: Colors.grey.shade200,
-                    child: Center(
-                      child: Text(
-                        item['image'] ?? '📦',
-                        style: const TextStyle(fontSize: 100),
+                  // Image Carousel
+                  if (widget.item.imageUrls.isNotEmpty)
+                    PageView.builder(
+                      itemCount: widget.item.imageUrls.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentImageIndex = index;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        return Image.network(
+                          widget.item.imageUrls[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[200],
+                              child: const Center(
+                                child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    )
+                  else
+                    Container(
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
                       ),
                     ),
-                  ),
-                  // Gradient overlay for better text visibility
+
+                  // Image indicator dots
+                  if (widget.item.imageUrls.length > 1)
+                    Positioned(
+                      bottom: 16,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          widget.item.imageUrls.length,
+                              (index) => Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _currentImageIndex == index
+                                  ? Colors.green
+                                  : Colors.white.withAlpha(128),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Gradient overlay
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -42,6 +429,24 @@ class ItemDetailScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // Image counter
+                  if (widget.item.imageUrls.length > 1)
+                    Positioned(
+                      top: 50,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(128),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${_currentImageIndex + 1}/${widget.item.imageUrls.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -57,7 +462,7 @@ class ItemDetailScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
-              // Favorite button
+              // Wishlist button
               IconButton(
                 icon: Container(
                   padding: const EdgeInsets.all(8),
@@ -65,17 +470,19 @@ class ItemDetailScreen extends StatelessWidget {
                     color: Colors.white.withAlpha(200),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.favorite_border, color: Colors.red, size: 22),
+                  child: _isLoading
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : Icon(
+                    _isInWishlist ? Icons.favorite : Icons.favorite_border,
+                    color: _isInWishlist ? Colors.red : Colors.black,
+                    size: 22,
+                  ),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${item['name']} added to wishlist'),
-                      duration: const Duration(seconds: 1),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
+                onPressed: _isLoading ? null : _toggleWishlist,
               ),
               // Share button
               IconButton(
@@ -87,15 +494,27 @@ class ItemDetailScreen extends StatelessWidget {
                   ),
                   child: const Icon(Icons.share, color: Colors.blue, size: 22),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Share feature coming soon!'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                },
+                onPressed: _shareItem,
               ),
+              // Edit button (if owner)
+              if (isOwner)
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(200),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit, color: Colors.orange, size: 22),
+                  ),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/edit-product',
+                      arguments: widget.item,
+                    );
+                  },
+                ),
             ],
           ),
 
@@ -109,67 +528,17 @@ class ItemDetailScreen extends StatelessWidget {
                   // Category & Condition Chips
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withAlpha(20),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getCategoryIcon(item['category'] ?? 'Other'),
-                              size: 14,
-                              color: Colors.green,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              item['category'] ?? 'Category',
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildInfoChip(
+                        icon: _getCategoryIcon(widget.item.category),
+                        label: widget.item.category,
+                        color: Colors.green,
                       ),
                       const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getConditionColor(item['condition'] ?? 'Good').withAlpha(20),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _getConditionColor(item['condition'] ?? 'Good'),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              item['condition'] ?? 'Good',
-                              style: TextStyle(
-                                color: _getConditionColor(item['condition'] ?? 'Good'),
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _buildInfoChip(
+                        icon: Icons.circle,
+                        label: widget.item.condition,
+                        color: _getConditionColor(widget.item.condition),
+                        showIcon: false,
                       ),
                     ],
                   ),
@@ -178,7 +547,7 @@ class ItemDetailScreen extends StatelessWidget {
 
                   // Title
                   Text(
-                    item['name'] ?? 'Item Name',
+                    widget.item.title,
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -187,14 +556,16 @@ class ItemDetailScreen extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // Seller Info and Rating
+                  // Seller Info and Stats
                   Row(
                     children: [
                       CircleAvatar(
                         radius: 14,
                         backgroundColor: Colors.green.shade100,
                         child: Text(
-                          item['seller']?[0] ?? 'U',
+                          widget.item.sellerName.isNotEmpty
+                              ? widget.item.sellerName[0].toUpperCase()
+                              : 'U',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -203,10 +574,11 @@ class ItemDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        item['seller'] ?? 'Unknown Seller',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Text(
+                          widget.item.sellerName,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -219,11 +591,11 @@ class ItemDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.star, size: 16, color: Colors.amber),
+                      const Icon(Icons.visibility, size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
-                        item['rating']?.toString() ?? '4.5',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        '${widget.item.viewCount} views',
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
                   ),
@@ -252,33 +624,109 @@ class ItemDetailScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              item['price'] ?? '\$0',
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '₹${widget.item.price.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                if (widget.item.specifications?['originalPrice'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8, bottom: 8),
+                                    child: Text(
+                                      '₹${widget.item.specifications!['originalPrice']}',
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.lineThrough,
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withAlpha(20),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            'Negotiable',
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
+                        if (widget.item.specifications?['isNegotiable'] == true)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withAlpha(20),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'Negotiable',
+                              style: TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  // Quantity Selector
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Quantity',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline),
+                              onPressed: _selectedQuantity > 1
+                                  ? () {
+                                setState(() {
+                                  _selectedQuantity--;
+                                });
+                              }
+                                  : null,
+                              color: _selectedQuantity > 1 ? Colors.green : Colors.grey,
+                            ),
+                            Container(
+                              width: 40,
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$_selectedQuantity',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle_outline),
+                              onPressed: _selectedQuantity < 10
+                                  ? () {
+                                setState(() {
+                                  _selectedQuantity++;
+                                });
+                              }
+                                  : null,
+                              color: _selectedQuantity < 10 ? Colors.green : Colors.grey,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -296,9 +744,8 @@ class ItemDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    item['description'] ??
-                        'This is a high-quality item in excellent condition. Perfect for anyone looking for sustainable options. All items are cleaned and sanitized before listing.',
-                    style: const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
+                    widget.item.description,
+                    style: const TextStyle(fontSize: 15, height: 1.5),
                   ),
 
                   const SizedBox(height: 25),
@@ -323,15 +770,59 @@ class ItemDetailScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        _buildDetailRow(Icons.branding_watermark, 'Brand', item['brand'] ?? 'Generic'),
+                        if (widget.item.specifications?['brand'] != null)
+                          _buildDetailRow(
+                            Icons.branding_watermark,
+                            'Brand',
+                            widget.item.specifications!['brand'],
+                          ),
+                        if (widget.item.specifications?['size'] != null) ...[
+                          if (widget.item.specifications?['brand'] != null)
+                            const Divider(height: 20),
+                          _buildDetailRow(
+                            Icons.straighten,
+                            'Size',
+                            widget.item.specifications!['size'],
+                          ),
+                        ],
+                        if (widget.item.specifications?['color'] != null) ...[
+                          const Divider(height: 20),
+                          _buildDetailRow(
+                            Icons.palette,
+                            'Color',
+                            widget.item.specifications!['color'],
+                          ),
+                        ],
+                        if (widget.item.specifications?['material'] != null) ...[
+                          const Divider(height: 20),
+                          _buildDetailRow(
+                            Icons.category,
+                            'Material',
+                            widget.item.specifications!['material'],
+                          ),
+                        ],
+                        if (widget.item.specifications?['gender'] != null) ...[
+                          const Divider(height: 20),
+                          _buildDetailRow(
+                            Icons.person,
+                            'Gender',
+                            widget.item.specifications!['gender'],
+                          ),
+                        ],
+                        if (widget.item.location != null) ...[
+                          const Divider(height: 20),
+                          _buildDetailRow(
+                            Icons.location_on,
+                            'Location',
+                            widget.item.location!,
+                          ),
+                        ],
                         const Divider(height: 20),
-                        _buildDetailRow(Icons.straighten, 'Size', item['size'] ?? 'M'),
-                        const Divider(height: 20),
-                        _buildDetailRow(Icons.palette, 'Color', item['color'] ?? 'Black'),
-                        const Divider(height: 20),
-                        _buildDetailRow(Icons.location_on, 'Location', item['location'] ?? 'Kathmandu'),
-                        const Divider(height: 20),
-                        _buildDetailRow(Icons.calendar_today, 'Listed', 'Today'),
+                        _buildDetailRow(
+                          Icons.calendar_today,
+                          'Listed',
+                          _formatDate(widget.item.createdAt),
+                        ),
                       ],
                     ),
                   ),
@@ -339,50 +830,51 @@ class ItemDetailScreen extends StatelessWidget {
                   const SizedBox(height: 25),
 
                   // Shipping Info
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withAlpha(8),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.withAlpha(30)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withAlpha(20),
-                            borderRadius: BorderRadius.circular(10),
+                  if (widget.item.specifications?['canShip'] == true)
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withAlpha(8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.withAlpha(30)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withAlpha(20),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.local_shipping, color: Colors.blue),
                           ),
-                          child: const Icon(Icons.local_shipping, color: Colors.blue),
-                        ),
-                        const SizedBox(width: 15),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Shipping Available',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                          const SizedBox(width: 15),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Shipping Available',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Seller can ship this item (buyer pays shipping)',
-                                style: TextStyle(color: Colors.grey, fontSize: 13),
-                              ),
-                            ],
+                                SizedBox(height: 4),
+                                Text(
+                                  'Seller can ship this item (buyer pays shipping)',
+                                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
                   const SizedBox(height: 25),
 
-                  // Seller Contact Card
+                  // Seller Information Card
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(
@@ -407,7 +899,9 @@ class ItemDetailScreen extends StatelessWidget {
                                 radius: 25,
                                 backgroundColor: Colors.green.shade100,
                                 child: Text(
-                                  item['seller']?[0] ?? 'U',
+                                  widget.item.sellerName.isNotEmpty
+                                      ? widget.item.sellerName[0].toUpperCase()
+                                      : 'U',
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -421,7 +915,7 @@ class ItemDetailScreen extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      item['seller'] ?? 'Unknown Seller',
+                                      widget.item.sellerName,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
@@ -433,14 +927,14 @@ class ItemDetailScreen extends StatelessWidget {
                                         const Icon(Icons.star, size: 16, color: Colors.amber),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '${item['rating'] ?? 4.5} (128 reviews)',
+                                          '4.8 (128 reviews)',
                                           style: const TextStyle(color: Colors.grey),
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Member since 2024',
+                                      'Member since ${_formatMonthYear(widget.item.createdAt)}',
                                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                     ),
                                   ],
@@ -453,13 +947,7 @@ class ItemDetailScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Messaging feature coming soon!'),
-                                      ),
-                                    );
-                                  },
+                                  onPressed: _contactSeller,
                                   icon: const Icon(Icons.message),
                                   label: const Text('Message'),
                                   style: OutlinedButton.styleFrom(
@@ -470,14 +958,7 @@ class ItemDetailScreen extends StatelessWidget {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Contacting ${item['seller'] ?? 'seller'}...'),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                  },
+                                  onPressed: _contactSeller,
                                   icon: const Icon(Icons.phone),
                                   label: const Text('Contact'),
                                   style: ElevatedButton.styleFrom(
@@ -494,7 +975,7 @@ class ItemDetailScreen extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 25),
 
                   // Safety Tips
                   Container(
@@ -525,7 +1006,22 @@ class ItemDetailScreen extends StatelessWidget {
                         Text('• Meet in a public place for exchange'),
                         Text('• Use secure payment methods'),
                         Text('• Trust your instincts'),
+                        Text('• Report suspicious activity'),
                       ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  // Report Item
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _showReportDialog,
+                      icon: const Icon(Icons.flag, color: Colors.red, size: 16),
+                      label: const Text(
+                        'Report this item',
+                        style: TextStyle(color: Colors.red),
+                      ),
                     ),
                   ),
 
@@ -538,93 +1034,207 @@ class ItemDetailScreen extends StatelessWidget {
       ),
 
       // Bottom Action Bar
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withAlpha(26),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+      bottomNavigationBar: isOwner
+          ? _buildOwnerBottomBar()
+          : _buildBuyerBottomBar(),
+    );
+  }
+
+  Widget _buildBuyerBottomBar() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha(26),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            // Message Button
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isLoading ? null : _contactSeller,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  side: const BorderSide(color: Colors.green),
+                  foregroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text('Message'),
+              ),
+            ),
+            const SizedBox(width: 15),
+            // Add to Cart Button
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _addToCart,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+                    : const Text('Add to Cart'),
+              ),
             ),
           ],
         ),
-        child: SafeArea(
-          child: Row(
-            children: [
-              // Message Button
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Messaging feature coming soon!'),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    side: const BorderSide(color: Colors.green),
-                    foregroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: const Text('Message'),
-                ),
-              ),
-              const SizedBox(width: 15),
-              // Buy Now Button
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    _showPurchaseDialog(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: const Text('Buy Now'),
-                ),
-              ),
-            ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerBottomBar() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha(26),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
           ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  _showEditDeleteOptions();
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  side: const BorderSide(color: Colors.orange),
+                  foregroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text('Edit / Delete'),
+              ),
+            ),
+            const SizedBox(width: 15),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  _shareItem();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text('Share'),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
   // Helper Methods
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[600]),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 80,
-          child: Text(
+  Widget _buildInfoChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    bool showIcon = true,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showIcon)
+            Icon(
+              icon,
+              size: 14,
+              color: color,
+            ),
+          if (showIcon) const SizedBox(width: 4),
+          Container(
+            width: showIcon ? null : 8,
+            height: showIcon ? null : 8,
+            decoration: showIcon
+                ? null
+                : BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+            ),
+          ),
+          if (!showIcon) const SizedBox(width: 4),
+          Text(
             label,
             style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
+              color: color,
               fontWeight: FontWeight.w500,
-              fontSize: 14,
+              fontSize: 12,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[600]),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -648,70 +1258,211 @@ class ItemDetailScreen extends StatelessWidget {
   }
 
   Color _getConditionColor(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'like new':
+    switch (condition) {
+      case 'Like New':
         return Colors.green;
-      case 'excellent':
+      case 'Excellent':
         return Colors.teal;
-      case 'good':
+      case 'Good':
         return Colors.blue;
-      case 'fair':
+      case 'Fair':
         return Colors.orange;
-      case 'needs repair':
+      case 'Needs Repair':
         return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
-  void _showPurchaseDialog(BuildContext context) {
-    showDialog(
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays < 1) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()} weeks ago';
+    } else if (difference.inDays < 365) {
+      return '${(difference.inDays / 30).floor()} months ago';
+    } else {
+      return '${(difference.inDays / 365).floor()} years ago';
+    }
+  }
+
+  String _formatMonthYear(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  void _showEditDeleteOptions() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Purchase'),
-        content: Column(
+      builder: (context) => SafeArea(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('You are about to purchase:'),
-            const SizedBox(height: 10),
-            Text(
-              item['name'] ?? 'Item',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ListTile(
+              leading: const Icon(Icons.edit, color: Colors.orange),
+              title: const Text('Edit Listing'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(
+                  context,
+                  '/edit-product',
+                  arguments: widget.item,
+                );
+              },
             ),
-            const SizedBox(height: 5),
-            Text('Price: ${item['price'] ?? '\$0'}'),
-            const SizedBox(height: 15),
-            const Text(
-              'This is a demo version. In the full app, you would proceed to payment.',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ListTile(
+              leading: const Icon(Icons.visibility_off, color: Colors.blue),
+              title: const Text('Mark as Sold'),
+              onTap: () {
+                Navigator.pop(context);
+                _markAsSold();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Listing'),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete();
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _markAsSold() async {
+    if (!mounted) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Sold'),
+        content: const Text('Are you sure you want to mark this item as sold?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Demo: Purchase initiated for ${item['name']}'),
-                  backgroundColor: Colors.green,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Continue (Demo)'),
+            child: const Text('Yes, Sold'),
           ),
         ],
       ),
     );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      await productProvider.updateProduct(
+        productId: widget.item.id,
+        isAvailable: false,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Item marked as sold'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _confirmDelete() async {
+    if (!mounted) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Listing'),
+        content: const Text('Are you sure you want to delete this item? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      await productProvider.permanentlyDeleteProduct(
+          widget.item.id,
+          widget.item.imageUrls
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Item deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 }
