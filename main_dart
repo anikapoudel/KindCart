@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
-//  relative imports 
+//  relative imports
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'theme_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/product_provider.dart';
+import 'providers/wishlist_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +28,9 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (_) => CartProvider(),
         ),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => WishlistProvider()),
+
         ChangeNotifierProvider(
           create: (_) => AuthProvider(), // Add AuthProvider
         ),
@@ -40,17 +45,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to theme provider
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       title: 'KindCart',
       debugShowCheckedModeBanner: false,
 
-      // Use themeMode to switch between light/dark
+      // Using themeMode to switch between light/dark
       themeMode: themeProvider.themeMode,
 
-      // === LIGHT THEME (your original theme) ===
+      // === LIGHT THEME
       theme: ThemeData(
         useMaterial3: true,
 
@@ -100,7 +104,7 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
-      // === DARK THEME (new) ===
+      // === DARK THEME
       darkTheme: ThemeData(
         useMaterial3: true,
 
