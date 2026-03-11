@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../providers/product_provider.dart';
 import '../providers/auth_provider.dart';
@@ -28,27 +29,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _materialController = TextEditingController();
   final _locationController = TextEditingController();
 
-  //  SELECTED VALUES
+  // SELECTED VALUES
   String? _selectedCategory;
   String? _selectedCondition;
   String? _selectedGender;
 
-  //  TOGGLES
+  // TOGGLES
   bool _isNegotiable = false;
   bool _canShip = false;
   bool _hasOriginalPackaging = false;
 
-  //  LISTS
+  // LISTS
   final List<String> _categories = ProductModel.categoryOptions;
   final List<String> _conditions = ProductModel.conditionOptions;
   final List<String> _genders = ['Men', 'Women', 'Unisex', 'Kids'];
   final List<String> _sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 
-  //  IMAGES
-  final List<File> _selectedImages = [];
+  // IMAGES - Changed from List<File> to List<XFile>
+  final List<XFile> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
 
-  //  STEPPER
+  // STEPPER
   int _currentStep = 0;
   bool _isSubmitting = false;
 
@@ -66,7 +67,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     super.dispose();
   }
 
-  //  IMAGE PICKER
+  // IMAGE PICKER
   Future<void> _pickImages() async {
     try {
       final List<XFile>? images = await _imagePicker.pickMultiImage(
@@ -77,7 +78,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       if (images != null && mounted) {
         setState(() {
-          _selectedImages.addAll(images.map((xFile) => File(xFile.path))); // Fixed typo: xfile -> xFile
+          _selectedImages.addAll(images);
         });
       }
     } catch (e) {
@@ -100,7 +101,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
       if (photo != null && mounted) {
         setState(() {
-          _selectedImages.add(File(photo.path));
+          _selectedImages.add(photo);
         });
       }
     } catch (e) {
@@ -118,7 +119,53 @@ class _AddProductScreenState extends State<AddProductScreen> {
     });
   }
 
-  //  SUBMIT FORM
+  // Helper method to build image preview for both web and mobile
+  Widget _buildImagePreview(XFile image) {
+    if (kIsWeb) {
+      // For web, use Image.network with the XFile path (which is a blob URL)
+      return Image.network(
+        image.path,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('Error loading web image: $error');
+          return Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: Icon(Icons.broken_image, color: Colors.grey),
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                  loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+            ),
+          );
+        },
+      );
+    } else {
+      // For mobile, use Image.file
+      return Image.file(
+        File(image.path),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: Icon(Icons.broken_image, color: Colors.grey),
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  // SUBMIT FORM
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -189,17 +236,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
         price: double.parse(_priceController.text.trim()),
         category: _selectedCategory!,
         condition: _selectedCondition!,
-        images: _selectedImages,
+        images: _selectedImages, // Now passing List<XFile>
         specifications: specifications,
         location: _locationController.text.trim(),
         sellerId: authProvider.user!.uid,
-        sellerName: sellerName, // Using displayName or email as fallback
+        sellerName: sellerName,
       );
 
       if (!mounted) return;
 
       if (success) {
-        // Show success dialog
         _showSuccessDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -278,7 +324,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  VALIDATION
+  // VALIDATION
   bool _validateCurrentStep() {
     switch (_currentStep) {
       case 0: // Basic Info
@@ -295,7 +341,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
           return false;
         }
         return true;
-
       case 2: // Pricing & Location
         if (_locationController.text.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -313,7 +358,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  //  UI BUILD METHODS
+  // UI BUILD METHODS
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -397,7 +442,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    // Navigate to profile to change role
                     Navigator.pushNamed(context, '/profile');
                   },
                   style: ElevatedButton.styleFrom(
@@ -549,7 +593,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  STEP 1: BASIC INFO
+  // STEP 1: BASIC INFO
   Widget _buildBasicInfoStep() {
     return Form(
       key: _formKey,
@@ -701,7 +745,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  STEP 2: PHOTOS & DETAILS
+  // STEP 2: PHOTOS & DETAILS
   Widget _buildPhotosAndDetailsStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,10 +887,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            image: DecorationImage(
-              image: FileImage(_selectedImages[index]),
-              fit: BoxFit.cover,
-            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildImagePreview(_selectedImages[index]),
           ),
         ),
         if (index == 0)
@@ -998,7 +1042,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  STEP 3: PRICING & LOCATION
+  // STEP 3: PRICING & LOCATION
   Widget _buildPricingAndLocationStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,7 +1084,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
         const SizedBox(height: 15),
 
-        // Original Price (Optional)
+        // Original Price 
         TextFormField(
           controller: _originalPriceController,
           keyboardType: TextInputType.number,
@@ -1112,7 +1156,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  STEP 4: REVIEW
+  // STEP 4: REVIEW
   Widget _buildReviewStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1134,28 +1178,31 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  image: DecorationImage(
-                    image: FileImage(_selectedImages[index]),
-                    fit: BoxFit.cover,
-                  ),
                 ),
-                child: index == 0
-                    ? Container(
-                  alignment: Alignment.topLeft,
-                  padding: const EdgeInsets.all(4),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(4),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _buildImagePreview(_selectedImages[index]),
                     ),
-                    child: const Text(
-                      'Cover',
-                      style: TextStyle(color: Colors.white, fontSize: 8),
-                    ),
-                  ),
-                )
-                    : null,
+                    if (index == 0)
+                      Positioned(
+                        top: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Cover',
+                            style: TextStyle(color: Colors.white, fontSize: 8),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               );
             },
           ),
@@ -1236,7 +1283,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  BOTTOM BUTTONS
+  // BOTTOM BUTTONS
   Widget _buildBottomButtons() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1304,7 +1351,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  //  HELPER FUNCTIONS
+  // HELPER FUNCTIONS
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
