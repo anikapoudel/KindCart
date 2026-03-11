@@ -20,7 +20,7 @@ class AuthProvider extends ChangeNotifier {
   bool _sellerApprovalRequested = false;
   StreamSubscription? _userDocSubscription;
 
-  // Add these new properties
+  //  new properties
   StreamSubscription? _verificationListener;
   bool _isCheckingVerification = false;
 
@@ -48,7 +48,7 @@ class AuthProvider extends ChangeNotifier {
       _userRole == 'Buyer' && _isEmailVerified;
 
   AuthProvider() {
-    _setPersistence(); // Add persistence
+    _setPersistence();
     _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
@@ -59,7 +59,7 @@ class AuthProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // Add session persistence
+  //  session persistence
   Future<void> _setPersistence() async {
     try {
       await _auth.setPersistence(Persistence.LOCAL);
@@ -77,7 +77,10 @@ class AuthProvider extends ChangeNotifier {
       try {
         // Cancel previous subscriptions if any
         await _userDocSubscription?.cancel();
+
+        // Cancel any existing verification listener first
         _verificationListener?.cancel();
+        _isCheckingVerification = false;
 
         // Check email verification status
         await user.reload();
@@ -85,9 +88,12 @@ class AuthProvider extends ChangeNotifier {
         _isEmailVerified = freshUser?.emailVerified ?? false;
         debugPrint('📧 Email verified: $_isEmailVerified');
 
-        // If email is not verified, start listening for verification
-        if (!_isEmailVerified) {
+        // Only start listening if email is NOT verified AND user still exists
+        if (!_isEmailVerified && _user != null) {
+          debugPrint('🔍 Starting email verification listener...');
           _listenToVerificationStatus();
+        } else if (_isEmailVerified) {
+          debugPrint('✅ Email already verified, no listener needed');
         }
 
         // Load user role and listen to changes
@@ -97,35 +103,61 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('❌ Error in auth state change: $e');
       }
     } else {
+      // User is null - clean up everything
       _userRole = null;
       _isEmailVerified = false;
       _isProfileComplete = false;
       _isSellerApproved = false;
       _sellerApprovalRequested = false;
+
+      // Cancel all listeners
+      _verificationListener?.cancel();
       _isCheckingVerification = false;
       await _userDocSubscription?.cancel();
-      await _verificationListener?.cancel();
+
+      debugPrint('🧹 Cleaned up all listeners on logout');
     }
     notifyListeners();
   }
 
   // Add email verification listener
   void _listenToVerificationStatus() {
+    // Don't start if already checking or user is null
+    if (_isCheckingVerification || _user == null) {
+      debugPrint('⚠️ Not starting verification listener: already checking or user null');
+      return;
+    }
+
     _isCheckingVerification = true;
+
+    // Cancel any existing listener first
+    _verificationListener?.cancel();
+
+    debugPrint('🔍 Starting email verification polling...');
+
     _verificationListener = Stream.periodic(const Duration(seconds: 3))
-        .take(20) // Check for up to 60 seconds (20 * 3)
+        .take(20) // Check for up to 60 seconds
         .listen((_) async {
-      if (_user != null && _isCheckingVerification) {
+      //  Check if user still exists
+      if (_user == null || !_isCheckingVerification) {
+        debugPrint('🛑 Stopping verification listener: user null or cancelled');
+        _verificationListener?.cancel();
+        _isCheckingVerification = false;
+        return;
+      }
+
+      try {
         debugPrint('🔍 Checking email verification status...');
         await _user!.reload();
-        final isVerified = _user!.emailVerified;
+        final currentUser = _auth.currentUser;
+        final isVerified = currentUser?.emailVerified ?? false;
 
         if (isVerified != _isEmailVerified) {
           _isEmailVerified = isVerified;
+          debugPrint('✅ Email verification status changed to: $_isEmailVerified');
 
           if (isVerified) {
             debugPrint('✅ Email verified! Updating Firestore...');
-            // Update Firestore with verified status
             try {
               await _firestore.collection('users').doc(_user!.uid).update({
                 'emailVerified': true,
@@ -141,10 +173,19 @@ class AuthProvider extends ChangeNotifier {
 
           notifyListeners();
         }
+      } catch (e) {
+        debugPrint('❌ Error checking verification: $e');
+        // If error is due to user not found, cancel listener
+        if (e.toString().contains('user-not-found') ||
+            e.toString().contains('No such user') ||
+            e.toString().contains('network')) {
+          _verificationListener?.cancel();
+          _isCheckingVerification = false;
+        }
       }
     }, onDone: () {
       _isCheckingVerification = false;
-      debugPrint('⏱️ Email verification check completed');
+      debugPrint('⏱️ Email verification check completed (max attempts reached)');
     });
   }
 
@@ -456,7 +497,7 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('📧 Verification email sent');
 
       // Start listening for verification if not already
-      if (!_isCheckingVerification) {
+      if (!_isCheckingVerification && _user != null) {
         _listenToVerificationStatus();
       }
 
@@ -573,6 +614,8 @@ class AuthProvider extends ChangeNotifier {
         // Update display name in Firebase Auth if name changed
         if (name != null) {
           await _user!.updateDisplayName(name);
+          await _user!.reload();
+          _user = _auth.currentUser;
         }
 
         if (role != null) _userRole = role;
@@ -685,5 +728,59 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = 'Authentication failed: ${e.message}';
     }
     notifyListeners();
+  }
+
+  //  Add account deletion method
+  Future<bool> deleteAccount() async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      if (_user == null) return false;
+
+      // Delete user data from Firestore first
+      await _firestore.collection('users').doc(_user!.uid).delete();
+
+      // Delete the user account
+      await _user!.delete();
+
+      // Sign out
+      await signOut();
+
+      _setLoading(false);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        _errorMessage = 'Please log out and log in again before deleting your account';
+      } else {
+        _handleAuthError(e);
+      }
+      _setLoading(false);
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error deleting account: $e');
+      _errorMessage = 'Failed to delete account';
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  //  Check persisted auth state
+  Future<bool> checkPersistedAuth() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.reload();
+        _user = _auth.currentUser;
+        if (_user != null) {
+          await _loadUserRole(_user!.uid);
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('❌ Error checking persisted auth: $e');
+      return false;
+    }
   }
 }
