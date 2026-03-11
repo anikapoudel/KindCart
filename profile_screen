@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/product_provider.dart';
 import '../theme_provider.dart';
 import 'auth_screen.dart';
+import '../admin/approval_screen.dart';
+import 'addproduct_screen.dart';
+import 'adddonation_screen.dart';
+import 'wishlist_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,32 +17,32 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
- final Map<String, int> _userStats = {
-    'donations': 0,
-    'purchases': 0,
-    'sales': 0,
-  };
-
   Map<String, dynamic>? _userData;
-
-  Future<void> _loadUserData() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.isAuthenticated) {
-      final data = await authProvider.getUserData();
-      if (mounted) {
-        setState(() {
-          _userData = data;
-        });
-      }
-    }
-  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadUserData();
+      _loadRoleSpecificData();
     });
+  }
+
+  Future<void> _loadUserData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isAuthenticated) {
+      final data = await authProvider.getUserData();
+      if (mounted) setState(() => _userData = data);
+    }
+  }
+
+  Future<void> _loadRoleSpecificData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+
+    if (authProvider.isAuthenticated && authProvider.userRole == 'Seller') {
+      await productProvider.loadUserProducts(authProvider.user!.uid);
+    }
   }
 
   @override
@@ -47,19 +52,718 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(_getTitle(authProvider.userRole)),
+        backgroundColor: _getRoleColor(authProvider.userRole),
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(
-              themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-            ),
+            icon: Icon(themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => themeProvider.toggleTheme(),
           ),
+          // Role-specific action buttons
+          if (authProvider.userRole == 'Seller')
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                );
+              },
+            ),
+          if (authProvider.userRole == 'Donor')
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                Navigator.pushNamed(context, '/add-donation');
+              },
+            ),
         ],
       ),
       body: authProvider.isAuthenticated
-          ? _buildProfileContent(authProvider)
+          ? RefreshIndicator(
+        onRefresh: () async {
+          await _loadUserData();
+          await _loadRoleSpecificData();
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              //  SECTION 1: PROFILE HEADER (Common for all)
+              _buildProfileHeader(authProvider),
+
+              const SizedBox(height: 24),
+
+              //  SECTION 2: ROLE-SPECIFIC CONTENT
+              if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
+              if (authProvider.userRole == 'Seller') _buildSellerContent(authProvider),
+              if (authProvider.userRole == 'Donor') _buildDonorContent(),
+              if (authProvider.userRole == 'Admin') _buildAdminContent(),
+
+              const SizedBox(height: 24),
+
+              //  SECTION 3: COMMON SETTINGS (All users)
+              _buildCommonSettings(),
+
+              const SizedBox(height: 16),
+
+              //  SECTION 4: LOGOUT
+              _buildLogoutButton(authProvider),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      )
           : _buildLoginPrompt(),
+    );
+  }
+
+  //  HELPER METHODS
+
+  String _getTitle(String? role) {
+    switch (role) {
+      case 'Buyer': return 'My Account';
+      case 'Seller': return 'Seller Dashboard';
+      case 'Donor': return 'Donor Impact';
+      case 'Admin': return 'Admin Panel';
+      default: return 'Profile';
+    }
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role) {
+      case 'Buyer': return Colors.blue;
+      case 'Seller': return Colors.orange;
+      case 'Donor': return Colors.purple;
+      case 'Admin': return Colors.deepPurple;
+      default: return Colors.green;
+    }
+  }
+
+  //  SECTION 1: PROFILE HEADER
+
+  Widget _buildProfileHeader(AuthProvider auth) {
+    final user = auth.user;
+    final userName = _userData?['name'] ?? user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
+    final userEmail = user?.email ?? 'No email';
+    final userPhone = _userData?['phone'] ?? '';
+    final isVerified = auth.isEmailVerified;
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            // Avatar with verification badge
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: _getRoleColor(auth.userRole).withAlpha(30),
+                  backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                  child: user?.photoURL == null
+                      ? Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: _getRoleColor(auth.userRole),
+                    ),
+                  )
+                      : null,
+                ),
+                if (isVerified)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check, color: Colors.white, size: 16),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+
+            // User info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          userName,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => _showEditProfileDialog(auth),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(userEmail, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                  if (userPhone.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(userPhone, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  ],
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getRoleColor(auth.userRole).withAlpha(20),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      auth.userRole ?? 'Member',
+                      style: TextStyle(
+                        color: _getRoleColor(auth.userRole),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  //  SECTION 2: ROLE-SPECIFIC CONTENT
+
+  // ----- BUYER CONTENT -----
+  Widget _buildBuyerContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Shopping', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              _buildMenuItem(
+                icon: Icons.shopping_bag,
+                title: 'My Orders',
+                subtitle: 'Track your purchases',
+                onTap: () => _showComingSoon(),
+              ),
+              _buildMenuItem(
+                icon: Icons.favorite,
+                title: 'Wishlist',
+                subtitle: 'Items you saved',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const WishlistScreen()),
+                  );
+                },
+              ),
+              _buildMenuItem(
+                icon: Icons.location_on,
+                title: 'Saved Addresses',
+                subtitle: 'Manage delivery locations',
+                onTap: () => _showComingSoon(),
+              ),
+              _buildMenuItem(
+                icon: Icons.payment,
+                title: 'Payment Methods',
+                subtitle: 'Add or remove payment options',
+                onTap: () => _showComingSoon(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ----- SELLER CONTENT -----
+  Widget _buildSellerContent(AuthProvider auth) {
+    return Consumer<ProductProvider>(
+      builder: (context, productProvider, child) {
+        final activeListings = productProvider.userProducts.where((p) => p.isAvailable).length;
+        final soldItems = productProvider.userProducts.where((p) => !p.isAvailable).length;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Approval pending banner
+            if (!auth.isSellerApproved)
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.hourglass_empty, color: Colors.orange),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Seller Approval Pending',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            auth.sellerApprovalRequested
+                                ? 'Your request is being reviewed'
+                                : 'Complete your seller profile',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!auth.sellerApprovalRequested)
+                      TextButton(
+                        onPressed: () async {
+                          await auth.requestSellerApproval();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Approval requested!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Request'),
+                      ),
+                  ],
+                ),
+              ),
+
+            // Stats cards
+            const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    '$activeListings',
+                    'Active',
+                    Icons.inventory,
+                    Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    '$soldItems',
+                    'Sold',
+                    Icons.sell,
+                    Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    '4.8',
+                    'Rating',
+                    Icons.star,
+                    Colors.amber,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // My listings
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('My Listings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                TextButton(
+                  onPressed: () {},
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (productProvider.userProducts.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 50, color: Colors.grey[400]),
+                    const SizedBox(height: 12),
+                    const Text('No listings yet'),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                        );
+                      },
+                      child: const Text('Add Your First Product'),
+                    ),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                height: 200,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: productProvider.userProducts.length > 5 ? 5 : productProvider.userProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = productProvider.userProducts[index];
+                    return Container(
+                      width: 140,
+                      margin: const EdgeInsets.only(right: 12),
+                      child: Card(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                  image: product.imageUrls.isNotEmpty
+                                      ? DecorationImage(
+                                    image: NetworkImage(product.imageUrls.first),
+                                    fit: BoxFit.cover,
+                                  )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    '₹${product.price.toStringAsFixed(0)}',
+                                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: product.isAvailable ? Colors.green : Colors.red,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        product.isAvailable ? 'Available' : 'Sold',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: product.isAvailable ? Colors.green : Colors.red,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // Seller tools
+            const Text('Seller Tools', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                children: [
+                  _buildMenuItem(
+                    icon: Icons.message,
+                    title: 'Messages',
+                    subtitle: 'Chat with buyers',
+                    onTap: () => Navigator.pushNamed(context, '/chat'),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.analytics,
+                    title: 'Analytics',
+                    subtitle: 'View your sales performance',
+                    onTap: () => _showComingSoon(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ----- DONOR CONTENT -----
+  Widget _buildDonorContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Impact stats
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                const Text('Your Impact', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildImpactItem('12', 'Items Donated', Icons.volunteer_activism, Colors.purple),
+                    _buildImpactItem('250', 'Points', Icons.stars, Colors.amber),
+                    _buildImpactItem('5', 'Helped', Icons.people, Colors.green),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Donation history
+        const Text('Recent Donations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Card(
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (_, index) {
+              return ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.volunteer_activism, color: Colors.purple),
+                ),
+                title: const Text('Winter Clothes'),
+                subtitle: const Text('Donated 2 days ago'),
+                trailing: const Text('Completed', style: TextStyle(color: Colors.green)),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ----- ADMIN CONTENT -----
+  Widget _buildAdminContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Colors.deepPurple, Colors.purple],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _buildAdminMenuItem(
+                icon: Icons.check_circle,
+                title: 'Approve Sellers',
+                subtitle: 'Review pending seller requests',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SellerApprovalScreen()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildAdminMenuItem(
+                icon: Icons.people,
+                title: 'Manage Users',
+                subtitle: 'View all registered users',
+                onTap: () => _showComingSoon(),
+              ),
+              const SizedBox(height: 8),
+              _buildAdminMenuItem(
+                icon: Icons.inventory,
+                title: 'Manage Products',
+                subtitle: 'Review and moderate listings',
+                onTap: () => _showComingSoon(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  //  SECTION 3: COMMON SETTINGS
+
+  Widget _buildCommonSettings() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              _buildMenuItem(
+                icon: Icons.notifications,
+                title: 'Notifications',
+                subtitle: 'Manage your alerts',
+                onTap: () => _showComingSoon(),
+              ),
+              _buildMenuItem(
+                icon: Icons.lock,
+                title: 'Privacy & Security',
+                subtitle: 'Manage your data',
+                onTap: () => _showComingSoon(),
+              ),
+              _buildMenuItem(
+                icon: Icons.help,
+                title: 'Help & Support',
+                subtitle: 'FAQs and contact us',
+                onTap: () => _showComingSoon(),
+              ),
+              _buildMenuItem(
+                icon: Icons.info,
+                title: 'About KindCart',
+                subtitle: 'Learn about our mission',
+                onTap: () => Navigator.pushNamed(context, '/about'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  //  HELPER WIDGETS
+
+  Widget _buildMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.green),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildAdminMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(25),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.white),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
+        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String value, String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImpactItem(String value, String label, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 30),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      ],
+    );
+  }
+
+  Widget _buildLogoutButton(AuthProvider auth) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _showLogoutDialog(auth),
+        icon: const Icon(Icons.logout, color: Colors.red),
+        label: const Text('Logout', style: TextStyle(color: Colors.red)),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.red),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
     );
   }
 
@@ -76,23 +780,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.green.withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.person_outline,
-                size: 80,
-                color: Colors.green,
-              ),
+              child: const Icon(Icons.person_outline, size: 80, color: Colors.green),
             ),
             const SizedBox(height: 30),
             const Text(
               'Join KindCart Community',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             const Text(
-              'Login to manage your profile, track donations, and view your purchases',
+              'Login to manage your profile',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey),
             ),
@@ -118,423 +815,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileContent(AuthProvider authProvider) {
-    final user = authProvider.user;
+  //  DIALOGS
 
-    // Get data from Firestore if available, otherwise use Auth data
-    final String userName = _userData?['name'] ??
-        user?.displayName ??
-        (user?.email != null ? user!.email!.split('@')[0] : 'KindCart User');
-    final String userEmail = user?.email ?? 'No email';
-    final String userPhone = _userData?['phone'] ?? 'Not provided';
-    final String userRole = authProvider.userRole ?? 'Member';
-    final bool isVerified = authProvider.isEmailVerified;
-
-    return RefreshIndicator(
-      onRefresh: _loadUserData,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            // Profile Header with Verification Badge
-            Row(
-              children: [
-                // Profile Avatar
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 45,
-                      backgroundColor: Colors.green.shade100,
-                      backgroundImage: user?.photoURL != null
-                          ? NetworkImage(user!.photoURL!)
-                          : null,
-                      child: user?.photoURL == null
-                          ? Text(
-                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      )
-                          : null,
-                    ),
-                    if (isVerified)
-                      const Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          radius: 12,
-                          backgroundColor: Colors.green,
-                          child: Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 20),
-
-                // User Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              userName,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, size: 20),
-                            onPressed: () => _showEditProfileDialog(authProvider),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        userEmail,
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (userPhone != 'Not provided') ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          userPhone,
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getRoleColor(userRole).withAlpha(20),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getRoleIcon(userRole),
-                              size: 16,
-                              color: _getRoleColor(userRole),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              userRole,
-                              style: TextStyle(
-                                color: _getRoleColor(userRole),
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 30),
-
-            // Email Verification Banner (if not verified)
-            if (!isVerified)
-              Container(
-                margin: const EdgeInsets.only(bottom: 20),
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withAlpha(20),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withAlpha(77)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber, color: Colors.orange),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Email not verified',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Please verify your email to access all features',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final success = await authProvider.sendVerificationEmail();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                success
-                                    ? 'Verification email sent!'
-                                    : authProvider.errorMessage ?? 'Failed to send email',
-                              ),
-                              backgroundColor: success ? Colors.green : Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      child: const Text('Resend'),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Stats Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    '${_userStats['donations']}',
-                    'Donations',
-                    Icons.volunteer_activism,
-                    Colors.blue,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    '${_userStats['purchases']}',
-                    'Purchases',
-                    Icons.shopping_bag,
-                    Colors.green,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatCard(
-                    '${_userStats['sales']}',
-                    'Items Sold',
-                    Icons.sell,
-                    Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 30),
-
-            // Menu Items
-            _buildMenuItem(
-              icon: Icons.history,
-              title: 'Donation History',
-              subtitle: 'View all your past donations',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.shopping_cart,
-              title: 'My Orders',
-              subtitle: 'Track your purchases',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.favorite,
-              title: 'Wishlist',
-              subtitle: 'Items you saved',
-              onTap: () {
-                Navigator.pushNamed(context, '/wishlist');
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.location_on,
-              title: 'Saved Addresses',
-              subtitle: 'Manage delivery locations',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.payment,
-              title: 'Payment Methods',
-              subtitle: 'Add or remove payment options',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.notifications,
-              title: 'Notifications',
-              subtitle: 'Manage alert preferences',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.security,
-              title: 'Privacy & Security',
-              subtitle: 'Manage your data',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            _buildMenuItem(
-              icon: Icons.help,
-              title: 'Help & Support',
-              subtitle: 'FAQs and contact support',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming soon!')),
-                );
-              },
-            ),
-            const Divider(),
-            _buildMenuItem(
-              icon: Icons.logout,
-              title: 'Logout',
-              subtitle: 'Sign out of your account',
-              iconColor: Colors.red,
-              textColor: Colors.red,
-              onTap: () => _showLogoutDialog(authProvider),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String value, String label, IconData icon, Color color) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Color iconColor = Colors.green,
-    Color textColor = Colors.black,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: iconColor.withAlpha(20),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, color: iconColor),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: textColor,
-        ),
-      ),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: onTap,
-    );
-  }
-
-  void _showLogoutDialog(AuthProvider authProvider) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext); // Close dialog
-              await authProvider.signOut();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Logged out successfully'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditProfileDialog(AuthProvider authProvider) {
+  void _showEditProfileDialog(AuthProvider auth) {
     final nameController = TextEditingController(text: _userData?['name'] ?? '');
     final phoneController = TextEditingController(text: _userData?['phone'] ?? '');
-    String? selectedRole = authProvider.userRole;
+    String? selectedRole = auth.userRole;
     bool isLoading = false;
 
     showDialog(
@@ -553,7 +839,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Full Name',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person),
                       ),
                       enabled: !isLoading,
                     ),
@@ -563,7 +848,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Phone Number',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
                       ),
                       keyboardType: TextInputType.phone,
                       enabled: !isLoading,
@@ -574,7 +858,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Role',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person_outline),
                       ),
                       items: const [
                         DropdownMenuItem(value: 'Buyer', child: Text('Buyer')),
@@ -582,9 +865,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         DropdownMenuItem(value: 'Donor', child: Text('Donor')),
                       ],
                       onChanged: isLoading ? null : (value) {
-                        setDialogState(() {
-                          selectedRole = value;
-                        });
+                        setDialogState(() => selectedRole = value);
                       },
                     ),
                   ],
@@ -596,57 +877,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                    setDialogState(() {
-                      isLoading = true;
-                    });
+                  onPressed: isLoading ? null : () async {
+                    setDialogState(() => isLoading = true);
 
-                    final success = await authProvider.updateUserProfile(
+                    final success = await auth.updateUserProfile(
                       name: nameController.text.isNotEmpty ? nameController.text : null,
                       phone: phoneController.text.isNotEmpty ? phoneController.text : null,
                       role: selectedRole,
                     );
 
                     if (!dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
 
-                    Navigator.pop(dialogContext); // Close dialog
-
-                    if (success) {
-                      await _loadUserData(); // Reload user data
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile updated successfully'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    } else {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(authProvider.errorMessage ?? 'Failed to update profile'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
+                    if (success && mounted) {
+                      await _loadUserData();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Profile updated'), backgroundColor: Colors.green),
+                      );
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   child: isLoading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Save'),
                 ),
               ],
@@ -657,29 +909,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Color _getRoleColor(String role) {
-    switch (role) {
-      case 'Buyer':
-        return Colors.blue;
-      case 'Seller':
-        return Colors.orange;
-      case 'Donor':
-        return Colors.purple;
-      default:
-        return Colors.green;
-    }
+  void _showLogoutDialog(AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await auth.signOut();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Logged out'), backgroundColor: Colors.green),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
   }
 
-  IconData _getRoleIcon(String role) {
-    switch (role) {
-      case 'Buyer':
-        return Icons.shopping_bag;
-      case 'Seller':
-        return Icons.store;
-      case 'Donor':
-        return Icons.volunteer_activism;
-      default:
-        return Icons.person;
-    }
+  void _showComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Coming soon!'), duration: Duration(seconds: 1)),
+    );
   }
 }
