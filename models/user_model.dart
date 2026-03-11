@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 class UserModel {
   final String uid;
   final String email;
@@ -13,9 +14,14 @@ class UserModel {
   // Seller-specific fields
   final bool sellerApproved;
   final bool sellerApprovalRequested;
+  final DateTime? sellerApprovalRequestedAt;
   final DateTime? sellerApprovedAt;
   final String? approvedBy;
+  final String? approvedByEmail;
   final String? sellerRejectionReason;
+  final DateTime? sellerRejectedAt;
+  final String? rejectedBy;
+  final String? rejectedByEmail;
 
   // Donor-specific fields
   final int donationPoints;
@@ -35,9 +41,14 @@ class UserModel {
     this.preferences,
     this.sellerApproved = false,
     this.sellerApprovalRequested = false,
+    this.sellerApprovalRequestedAt,
     this.sellerApprovedAt,
     this.approvedBy,
+    this.approvedByEmail,
     this.sellerRejectionReason,
+    this.sellerRejectedAt,
+    this.rejectedBy,
+    this.rejectedByEmail,
     this.donationPoints = 0,
     this.sellerRating = 0,
   });
@@ -55,9 +66,14 @@ class UserModel {
       'preferences': preferences,
       'sellerApproved': sellerApproved,
       'sellerApprovalRequested': sellerApprovalRequested,
+      'sellerApprovalRequestedAt': sellerApprovalRequestedAt,
       'sellerApprovedAt': sellerApprovedAt,
       'approvedBy': approvedBy,
+      'approvedByEmail': approvedByEmail,
       'sellerRejectionReason': sellerRejectionReason,
+      'sellerRejectedAt': sellerRejectedAt,
+      'rejectedBy': rejectedBy,
+      'rejectedByEmail': rejectedByEmail,
       'donationPoints': donationPoints,
       'sellerRating': sellerRating,
     };
@@ -76,11 +92,20 @@ class UserModel {
       preferences: map['preferences'],
       sellerApproved: map['sellerApproved'] ?? false,
       sellerApprovalRequested: map['sellerApprovalRequested'] ?? false,
+      sellerApprovalRequestedAt: map['sellerApprovalRequestedAt'] != null
+          ? (map['sellerApprovalRequestedAt'] as Timestamp).toDate()
+          : null,
       sellerApprovedAt: map['sellerApprovedAt'] != null
           ? (map['sellerApprovedAt'] as Timestamp).toDate()
           : null,
       approvedBy: map['approvedBy'],
+      approvedByEmail: map['approvedByEmail'],
       sellerRejectionReason: map['sellerRejectionReason'],
+      sellerRejectedAt: map['sellerRejectedAt'] != null
+          ? (map['sellerRejectedAt'] as Timestamp).toDate()
+          : null,
+      rejectedBy: map['rejectedBy'],
+      rejectedByEmail: map['rejectedByEmail'],
       donationPoints: map['donationPoints'] ?? 0,
       sellerRating: map['sellerRating'] ?? 0,
     );
