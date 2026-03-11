@@ -16,15 +16,19 @@ class CartProvider extends ChangeNotifier {
       // Update quantity if item exists
       _items[existingItemIndex]['quantity'] = (_items[existingItemIndex]['quantity'] ?? 1) + quantity;
     } else {
-      // Add new item
+      // Add new item with field names matching cart_screen expectations
       _items.add({
         'id': product.id,
+        'name': product.title,
         'title': product.title,
-        'price': product.price,
+        'price': '₹${product.price.toStringAsFixed(0)}',
+        'priceValue': product.price,
+        'image': product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
         'imageUrl': product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
         'quantity': quantity,
         'sellerId': product.sellerId,
         'sellerName': product.sellerName,
+        'category': product.category,
       });
     }
     notifyListeners();
@@ -79,7 +83,7 @@ class CartProvider extends ChangeNotifier {
   double get subtotal {
     double total = 0;
     for (var item in _items) {
-      double price = item['price']?.toDouble() ?? 0;
+      double price = item['priceValue']?.toDouble() ?? 0;
       int qty = item['quantity'] ?? 1;
       total += price * qty;
     }
