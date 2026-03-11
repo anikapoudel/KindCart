@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
+import 'editproduct_screen.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   final ProductModel item;
@@ -22,9 +22,13 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   bool _isLoading = false;
   int _selectedQuantity = 1;
 
+  // Add a local copy of the item that can be updated
+  late ProductModel _currentItem;
+
   @override
   void initState() {
     super.initState();
+    _currentItem = widget.item;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkWishlistStatus();
       _incrementViewCount();
@@ -40,7 +44,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
     final isInList = await wishlistProvider.isInWishlist(
         authProvider.user!.uid,
-        widget.item.id
+        _currentItem.id
     );
 
     if (mounted) {
@@ -55,9 +59,28 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     try {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
-      await productProvider.incrementViewCount(widget.item.id);
+      await productProvider.incrementViewCount(_currentItem.id);
     } catch (e) {
       debugPrint('❌ Error incrementing view count: $e');
+    }
+  }
+
+  // Add method to refresh product data
+  Future<void> _refreshProductData() async {
+    if (!mounted) return;
+
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final updatedProduct = productProvider.getProductById(_currentItem.id);
+
+      if (updatedProduct != null && mounted) {
+        setState(() {
+          _currentItem = updatedProduct;
+        });
+        debugPrint('✅ Product data refreshed successfully');
+      }
+    } catch (e) {
+      debugPrint('❌ Error refreshing product data: $e');
     }
   }
 
@@ -104,7 +127,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
       // Add to cart with quantity
-      cartProvider.addToCart(widget.item, quantity: _selectedQuantity);
+      cartProvider.addToCart(_currentItem, quantity: _selectedQuantity);
 
       if (!mounted) return;
 
@@ -153,7 +176,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     try {
       final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
 
-      await wishlistProvider.toggleWishlist(authProvider.user!.uid, widget.item);
+      await wishlistProvider.toggleWishlist(authProvider.user!.uid, _currentItem);
 
       if (!mounted) return;
 
@@ -204,17 +227,17 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             ListTile(
               leading: const Icon(Icons.chat, color: Colors.green),
               title: const Text('Send Message'),
-              subtitle: Text('Chat with ${widget.item.sellerName}'),
+              subtitle: Text('Chat with ${_currentItem.sellerName}'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(
                   context,
                   '/chat',
                   arguments: {
-                    'sellerId': widget.item.sellerId,
-                    'sellerName': widget.item.sellerName,
-                    'productId': widget.item.id,
-                    'productTitle': widget.item.title,
+                    'sellerId': _currentItem.sellerId,
+                    'sellerName': _currentItem.sellerName,
+                    'productId': _currentItem.id,
+                    'productTitle': _currentItem.title,
                   },
                 );
               },
@@ -331,7 +354,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final isOwner = authProvider.user?.uid == widget.item.sellerId;
+    final isOwner = authProvider.user?.uid == _currentItem.sellerId;
 
     return Scaffold(
       body: CustomScrollView(
@@ -346,9 +369,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                 fit: StackFit.expand,
                 children: [
                   // Image Carousel
-                  if (widget.item.imageUrls.isNotEmpty)
+                  if (_currentItem.imageUrls.isNotEmpty)
                     PageView.builder(
-                      itemCount: widget.item.imageUrls.length,
+                      itemCount: _currentItem.imageUrls.length,
                       onPageChanged: (index) {
                         setState(() {
                           _currentImageIndex = index;
@@ -356,7 +379,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       },
                       itemBuilder: (context, index) {
                         return Image.network(
-                          widget.item.imageUrls[index],
+                          _currentItem.imageUrls[index],
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
@@ -392,7 +415,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     ),
 
                   // Image indicator dots
-                  if (widget.item.imageUrls.length > 1)
+                  if (_currentItem.imageUrls.length > 1)
                     Positioned(
                       bottom: 16,
                       left: 0,
@@ -400,7 +423,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
-                          widget.item.imageUrls.length,
+                          _currentItem.imageUrls.length,
                               (index) => Container(
                             width: 8,
                             height: 8,
@@ -431,7 +454,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   ),
 
                   // Image counter
-                  if (widget.item.imageUrls.length > 1)
+                  if (_currentItem.imageUrls.length > 1)
                     Positioned(
                       top: 50,
                       right: 16,
@@ -442,7 +465,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          '${_currentImageIndex + 1}/${widget.item.imageUrls.length}',
+                          '${_currentImageIndex + 1}/${_currentItem.imageUrls.length}',
                           style: const TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ),
@@ -507,12 +530,37 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     ),
                     child: const Icon(Icons.edit, color: Colors.orange, size: 22),
                   ),
-                  onPressed: () {
-                    Navigator.pushNamed(
+                  onPressed: () async {
+                    debugPrint('🔍 Navigating to edit product: ${_currentItem.id}');
+
+                    // Use MaterialPageRoute
+                    final result = await Navigator.push(
                       context,
-                      '/edit-product',
-                      arguments: widget.item,
+                      MaterialPageRoute(
+                        builder: (context) => EditProductScreen(
+                          product: _currentItem,
+                        ),
+                      ),
                     );
+
+                    if (result == true && mounted) {
+                      debugPrint('✅ Product was updated, refreshing...');
+                      await _refreshProductData();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Product updated successfully'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),));
+                      // Show success message
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Product updated successfully'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   },
                 ),
             ],
@@ -529,15 +577,15 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   Row(
                     children: [
                       _buildInfoChip(
-                        icon: _getCategoryIcon(widget.item.category),
-                        label: widget.item.category,
+                        icon: _getCategoryIcon(_currentItem.category),
+                        label: _currentItem.category,
                         color: Colors.green,
                       ),
                       const SizedBox(width: 10),
                       _buildInfoChip(
                         icon: Icons.circle,
-                        label: widget.item.condition,
-                        color: _getConditionColor(widget.item.condition),
+                        label: _currentItem.condition,
+                        color: _getConditionColor(_currentItem.condition),
                         showIcon: false,
                       ),
                     ],
@@ -547,7 +595,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
                   // Title
                   Text(
-                    widget.item.title,
+                    _currentItem.title,
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -563,8 +611,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         radius: 14,
                         backgroundColor: Colors.green.shade100,
                         child: Text(
-                          widget.item.sellerName.isNotEmpty
-                              ? widget.item.sellerName[0].toUpperCase()
+                          _currentItem.sellerName.isNotEmpty
+                              ? _currentItem.sellerName[0].toUpperCase()
                               : 'U',
                           style: const TextStyle(
                             fontSize: 12,
@@ -576,7 +624,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          widget.item.sellerName,
+                          _currentItem.sellerName,
                           style: const TextStyle(fontWeight: FontWeight.w500),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -594,7 +642,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       const Icon(Icons.visibility, size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
-                        '${widget.item.viewCount} views',
+                        '${_currentItem.viewCount} views',
                         style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
@@ -628,18 +676,18 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '₹${widget.item.price.toStringAsFixed(0)}',
+                                  '₹${_currentItem.price.toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontSize: 32,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.green,
                                   ),
                                 ),
-                                if (widget.item.specifications?['originalPrice'] != null)
+                                if (_currentItem.specifications?['originalPrice'] != null)
                                   Padding(
                                     padding: const EdgeInsets.only(left: 8, bottom: 8),
                                     child: Text(
-                                      '₹${widget.item.specifications!['originalPrice']}',
+                                      '₹${_currentItem.specifications!['originalPrice']}',
                                       style: const TextStyle(
                                         decoration: TextDecoration.lineThrough,
                                         color: Colors.grey,
@@ -651,7 +699,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                             ),
                           ],
                         ),
-                        if (widget.item.specifications?['isNegotiable'] == true)
+                        if (_currentItem.specifications?['isNegotiable'] == true)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -744,7 +792,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    widget.item.description,
+                    _currentItem.description,
                     style: const TextStyle(fontSize: 15, height: 1.5),
                   ),
 
@@ -770,58 +818,58 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                     ),
                     child: Column(
                       children: [
-                        if (widget.item.specifications?['brand'] != null)
+                        if (_currentItem.specifications?['brand'] != null)
                           _buildDetailRow(
                             Icons.branding_watermark,
                             'Brand',
-                            widget.item.specifications!['brand'],
+                            _currentItem.specifications!['brand'],
                           ),
-                        if (widget.item.specifications?['size'] != null) ...[
-                          if (widget.item.specifications?['brand'] != null)
+                        if (_currentItem.specifications?['size'] != null) ...[
+                          if (_currentItem.specifications?['brand'] != null)
                             const Divider(height: 20),
                           _buildDetailRow(
                             Icons.straighten,
                             'Size',
-                            widget.item.specifications!['size'],
+                            _currentItem.specifications!['size'],
                           ),
                         ],
-                        if (widget.item.specifications?['color'] != null) ...[
+                        if (_currentItem.specifications?['color'] != null) ...[
                           const Divider(height: 20),
                           _buildDetailRow(
                             Icons.palette,
                             'Color',
-                            widget.item.specifications!['color'],
+                            _currentItem.specifications!['color'],
                           ),
                         ],
-                        if (widget.item.specifications?['material'] != null) ...[
+                        if (_currentItem.specifications?['material'] != null) ...[
                           const Divider(height: 20),
                           _buildDetailRow(
                             Icons.category,
                             'Material',
-                            widget.item.specifications!['material'],
+                            _currentItem.specifications!['material'],
                           ),
                         ],
-                        if (widget.item.specifications?['gender'] != null) ...[
+                        if (_currentItem.specifications?['gender'] != null) ...[
                           const Divider(height: 20),
                           _buildDetailRow(
                             Icons.person,
                             'Gender',
-                            widget.item.specifications!['gender'],
+                            _currentItem.specifications!['gender'],
                           ),
                         ],
-                        if (widget.item.location != null) ...[
+                        if (_currentItem.location != null) ...[
                           const Divider(height: 20),
                           _buildDetailRow(
                             Icons.location_on,
                             'Location',
-                            widget.item.location!,
+                            _currentItem.location!,
                           ),
                         ],
                         const Divider(height: 20),
                         _buildDetailRow(
                           Icons.calendar_today,
                           'Listed',
-                          _formatDate(widget.item.createdAt),
+                          _formatDate(_currentItem.createdAt),
                         ),
                       ],
                     ),
@@ -830,7 +878,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   const SizedBox(height: 25),
 
                   // Shipping Info
-                  if (widget.item.specifications?['canShip'] == true)
+                  if (_currentItem.specifications?['canShip'] == true)
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
@@ -899,8 +947,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                                 radius: 25,
                                 backgroundColor: Colors.green.shade100,
                                 child: Text(
-                                  widget.item.sellerName.isNotEmpty
-                                      ? widget.item.sellerName[0].toUpperCase()
+                                  _currentItem.sellerName.isNotEmpty
+                                      ? _currentItem.sellerName[0].toUpperCase()
                                       : 'U',
                                   style: const TextStyle(
                                     fontSize: 20,
@@ -915,7 +963,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      widget.item.sellerName,
+                                      _currentItem.sellerName,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
@@ -934,7 +982,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Member since ${_formatMonthYear(widget.item.createdAt)}',
+                                      'Member since ${_formatMonthYear(_currentItem.createdAt)}',
                                       style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                     ),
                                   ],
@@ -1259,15 +1307,17 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   Color _getConditionColor(String condition) {
     switch (condition) {
+      case 'Brand New':
       case 'Like New':
         return Colors.green;
       case 'Excellent':
+      case 'Very Good':
         return Colors.teal;
       case 'Good':
         return Colors.blue;
       case 'Fair':
         return Colors.orange;
-      case 'Needs Repair':
+      case 'For Parts/Not Working':
         return Colors.red;
       default:
         return Colors.grey;
@@ -1311,13 +1361,17 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.orange),
               title: const Text('Edit Listing'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                Navigator.pushNamed(
+                final result = await Navigator.pushNamed(
                   context,
                   '/edit-product',
-                  arguments: widget.item,
+                  arguments: _currentItem,
                 );
+
+                if (result == true && mounted) {
+                  await _refreshProductData();
+                }
               },
             ),
             ListTile(
@@ -1374,11 +1428,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     try {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
       await productProvider.updateProduct(
-        productId: widget.item.id,
+        productId: _currentItem.id,
         isAvailable: false,
       );
 
       if (!mounted) return;
+
+      // Refresh product data
+      await _refreshProductData();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1436,8 +1493,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     try {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
       await productProvider.permanentlyDeleteProduct(
-          widget.item.id,
-          widget.item.imageUrls
+          _currentItem.id,
+          _currentItem.imageUrls
       );
 
       if (!mounted) return;
