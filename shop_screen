@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:typed_data';
 
 import '../providers/product_provider.dart';
 import '../models/product_model.dart';
@@ -18,6 +19,16 @@ class _ShopScreenState extends State<ShopScreen> {
   String _selectedCondition = 'All';
   double _maxPrice = 10000;
   bool _showFilters = false;
+
+  // Transparent image placeholder for FadeInImage
+  static final Uint8List kTransparentImage = Uint8List.fromList([
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+    0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+    0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+  ]);
 
   @override
   void initState() {
@@ -91,7 +102,7 @@ class _ShopScreenState extends State<ShopScreen> {
                 ),
               ),
 
-              // Filters 
+              // Filters
               if (_showFilters) _buildFilters(productProvider),
 
               // Categories
@@ -130,7 +141,7 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                     const Spacer(),
                     DropdownButton<bool>(
-                      value: productProvider.sortByNewest,  // ✅ Use the getter, not private field
+                      value: productProvider.sortByNewest,
                       items: const [
                         DropdownMenuItem(value: true, child: Text('Newest First')),
                         DropdownMenuItem(value: false, child: Text('Price: Low to High')),
@@ -320,7 +331,7 @@ class _ShopScreenState extends State<ShopScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Image
+            // Product Image 
             Expanded(
               flex: 3,
               child: Container(
@@ -330,18 +341,79 @@ class _ShopScreenState extends State<ShopScreen> {
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
-                  image: product.imageUrls.isNotEmpty
-                      ? DecorationImage(
+                ),
+                child: product.imageUrls.isNotEmpty
+                    ? ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: FadeInImage(
+                    placeholder: MemoryImage(kTransparentImage),
                     image: NetworkImage(product.imageUrls.first),
                     fit: BoxFit.cover,
-                  )
-                      : null,
-                ),
-                child: product.imageUrls.isEmpty
-                    ? const Center(
-                  child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+                    imageErrorBuilder: (context, error, stackTrace) {
+                      debugPrint('❌ Image error for ${product.id}: $error');
+                      // Try alternative URL without token parameter
+                      try {
+                        final originalUrl = product.imageUrls.first;
+                        // If URL contains token parameter, try without it
+                        if (originalUrl.contains('?alt=media&token=')) {
+                          final alternativeUrl = originalUrl.replaceAll(
+                            RegExp(r'\?alt=media&token=.*$'),
+                            '?alt=media',
+                          );
+                          return Image.network(
+                            alternativeUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error2, stackTrace) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.broken_image, size: 30, color: Colors.grey[400]),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'No image',
+                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint('Error handling alternative URL: $e');
+                      }
+
+                      return Container(
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, size: 30, color: Colors.grey[400]),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Image unavailable',
+                                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    placeholderErrorBuilder: (context, error, stackTrace) {
+                      return Container(color: Colors.grey[200]);
+                    },
+                  ),
                 )
-                    : null,
+                    : Center(
+                  child: Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]),
+                ),
               ),
             ),
 
