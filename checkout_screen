@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart' as app_auth;
+import '../providers/order_provider.dart';
+import '../models/order_model.dart';
+import '../providers/chat_provider.dart';
+import 'user_chat_screen.dart';
+import 'chats_list_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -18,29 +25,96 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
-  final _pincodeController = TextEditingController();
+  final _postalCodeController = TextEditingController();
 
   // Selected Payment Method
   String? _selectedPaymentMethod;
   final List<String> _paymentMethods = [
     'Cash on Delivery',
-    'Credit/Debit Card',
-    'UPI',
-    'Net Banking',
+    'Contact Seller',
   ];
 
   @override
+  void initState() {
+    super.initState();
+    debugPrint('🔄 CheckoutScreen initState');
+    // Pre-fill user data if available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefillUserData();
+    });
+  }
+
+  void _prefillUserData() {
+    debugPrint('🔄 Pre-filling user data');
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+    final userData = authProvider.userData;
+
+    if (user != null) {
+      _nameController.text = userData?['name'] ?? user.displayName ?? '';
+      _phoneController.text = userData?['phone'] ?? '';
+      debugPrint(
+          '✅ User data pre-filled: ${_nameController.text}, ${_phoneController.text}');
+    }
+  }
+
+  @override
   void dispose() {
+    debugPrint('🔄 CheckoutScreen dispose');
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _cityController.dispose();
-    _pincodeController.dispose();
+    _postalCodeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<app_auth.AuthProvider>(context);
+
+    // Check if user is authenticated
+    if (!authProvider.isAuthenticated) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Checkout'),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline, size: 80, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text(
+                'Login to Checkout',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Please login to complete your purchase',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/auth');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+                child: const Text('Login'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Checkout'),
@@ -52,19 +126,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         currentStep: _currentStep,
         onStepContinue: _currentStep < 2
             ? () {
-          if (_validateStep()) {
-            setState(() {
-              _currentStep++;
-            });
-          }
-        }
+                debugPrint('➡️ Continue clicked, current step: $_currentStep');
+                if (_validateStep()) {
+                  debugPrint('✅ Validation passed, moving to next step');
+                  setState(() {
+                    _currentStep++;
+                  });
+                } else {
+                  debugPrint('❌ Validation failed');
+                }
+              }
             : null,
         onStepCancel: _currentStep > 0
             ? () {
-          setState(() {
-            _currentStep--;
-          });
-        }
+                debugPrint('⬅️ Cancel clicked, moving to previous step');
+                setState(() {
+                  _currentStep--;
+                });
+              }
             : null,
         steps: [
           // Step 1: Delivery Address
@@ -89,9 +168,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: _currentStep == 2
-          ? _buildPlaceOrderButton()
-          : null,
+      bottomNavigationBar: _currentStep == 2 ? _buildPlaceOrderButton() : null,
     );
   }
 
@@ -150,10 +227,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         const SizedBox(height: 15),
 
-        // City and Pincode Row
+        // City and Postal Code Row
         Row(
           children: [
             Expanded(
+              flex: 2,
               child: TextFormField(
                 controller: _cityController,
                 decoration: InputDecoration(
@@ -166,11 +244,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
+              flex: 1,
               child: TextFormField(
-                controller: _pincodeController,
-                keyboardType: TextInputType.number,
+                controller: _postalCodeController,
+                keyboardType: TextInputType.text,
                 decoration: InputDecoration(
-                  labelText: 'Pincode *',
+                  labelText: 'Postal Code',
+                  hintText: 'Optional',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -182,12 +262,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         const SizedBox(height: 20),
 
-        // Save Address Switch
-        SwitchListTile(
-          title: const Text('Save this address for future'),
-          value: true,
-          onChanged: (value) {},
-          secondary: const Icon(Icons.save_outlined),
+        // Delivery Note
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.blue.withAlpha(13),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.blue.withAlpha(77)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Please provide accurate address details for smooth delivery',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -213,9 +307,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             child: RadioListTile<String>(
               title: Text(method),
+              subtitle: _getPaymentSubtitle(method),
               value: method,
               groupValue: _selectedPaymentMethod,
               onChanged: (value) {
+                debugPrint('💰 Payment method selected: $value');
                 setState(() {
                   _selectedPaymentMethod = value;
                 });
@@ -224,43 +320,94 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               activeColor: Colors.green,
             ),
           );
-        }).toList(),
+        }),
 
         const SizedBox(height: 20),
 
-        // Security Note
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.blue.withAlpha(13),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.blue.withAlpha(77)),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.security, color: Colors.blue),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Your payment information is secure and encrypted',
-                  style: TextStyle(fontSize: 12),
+        // Payment Info based on selection
+        if (_selectedPaymentMethod == 'Cash on Delivery')
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.green.withAlpha(13),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.withAlpha(77)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.money, color: Colors.green),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Pay with cash when your order is delivered',
+                    style: TextStyle(fontSize: 13),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          )
+        else if (_selectedPaymentMethod == 'Contact Seller')
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.orange.withAlpha(13),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.withAlpha(77)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.chat, color: Colors.orange),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'You will see seller contact details after placing the order',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
+  }
+
+  Text? _getPaymentSubtitle(String method) {
+    switch (method) {
+      case 'Cash on Delivery':
+        return const Text('Pay when you receive');
+      case 'Contact Seller':
+        return const Text('Contact seller to arrange payment');
+      default:
+        return null;
+    }
   }
 
   // Step 3: Order Review
   Widget _buildReviewStep() {
     final cart = Provider.of<CartProvider>(context);
+    debugPrint('📦 Building review step, cart items: ${cart.items.length}');
+
+    // Group items by seller
+    final Map<String, List<Map<String, dynamic>>> sellerItems = {};
+    final Map<String, String> sellerNames = {};
+    final Map<String, String> sellerPhones = {};
+
+    for (var item in cart.items) {
+      final sellerId = item['sellerId'] ?? 'unknown';
+      final sellerName = item['sellerName'] ?? 'Unknown Seller';
+      final sellerPhone = item['sellerPhone'] ?? 'Not provided';
+
+      if (!sellerItems.containsKey(sellerId)) {
+        sellerItems[sellerId] = [];
+        sellerNames[sellerId] = sellerName;
+        sellerPhones[sellerId] = sellerPhone;
+      }
+      sellerItems[sellerId]!.add(item);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Order Items
         const Text(
           'Order Summary',
           style: TextStyle(
@@ -270,63 +417,118 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         const SizedBox(height: 15),
 
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: cart.items.length,
-          itemBuilder: (context, index) {
-            final item = cart.items[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
+        // Items grouped by seller
+        ...sellerItems.entries.map((entry) {
+          final sellerId = entry.key;
+          final sellerName = sellerNames[sellerId]!;
+          final items = entry.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Seller header
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.store, size: 16, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Expanded(
                       child: Text(
-                        item['image'] ?? '📦',
-                        style: const TextStyle(fontSize: 20),
+                        'Seller: $sellerName',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['name'],
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Qty: ${item['quantity']}',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    item['price'],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
-          },
-        ),
+              const SizedBox(height: 8),
 
-        const Divider(height: 30),
+              // Items from this seller
+              ...items.map((item) {
+                // Parse price properly
+                double itemPrice = 0;
+                if (item['price'] is String) {
+                  itemPrice = double.parse(item['price']
+                      .toString()
+                      .replaceAll('₹', '')
+                      .replaceAll(',', ''));
+                } else {
+                  itemPrice = (item['price'] as num).toDouble();
+                }
+                int quantity = item['quantity'] as int;
+                double totalItemPrice = itemPrice * quantity;
 
-        // Price Details
-        _buildPriceRow('Subtotal', cart.totalPrice),
-        _buildPriceRow('Delivery Fee', cart.deliveryFee),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10, left: 8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: item['imageUrl'] != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  item['imageUrl'],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      const Icon(Icons.image),
+                                ),
+                              )
+                            : const Center(
+                                child: Icon(Icons.image, color: Colors.grey),
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['name'],
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              'Qty: $quantity',
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '₹${totalItemPrice.toStringAsFixed(0)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+              const Divider(),
+            ],
+          );
+        }),
+
+        // Price Details - Parse string values to double with error handling
+        _buildPriceRow('Subtotal', _parsePrice(cart.totalPrice)),
+        _buildPriceRow('Delivery Fee', _parsePrice(cart.deliveryFee)),
         const Divider(height: 20),
-        _buildPriceRow('Total', cart.grandTotal, isTotal: true),
+        _buildPriceRow('Total', _parsePrice(cart.grandTotal), isTotal: true),
 
         const SizedBox(height: 20),
 
@@ -347,7 +549,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               const SizedBox(height: 8),
               Text(_nameController.text),
               Text(_addressController.text),
-              Text('${_cityController.text} - ${_pincodeController.text}'),
+              Text(
+                  '${_cityController.text}${_postalCodeController.text.isNotEmpty ? ' - ${_postalCodeController.text}' : ''}'),
               Text('Phone: ${_phoneController.text}'),
             ],
           ),
@@ -385,6 +588,60 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  // Robust price parsing method with error handling
+  double _parsePrice(String priceString) {
+    try {
+      // Removed all non-numeric characters except decimal point
+      String cleaned = priceString.replaceAll(RegExp(r'[^\d.]'), '');
+
+      // Handle empty string
+      if (cleaned.isEmpty) {
+        debugPrint('⚠️ Empty price string, returning 0');
+        return 0.0;
+      }
+
+      // Handle multiple decimal points
+      if (cleaned.contains('.')) {
+        List<String> parts = cleaned.split('.');
+        if (parts.length > 2) {
+          cleaned = parts[0] + '.' + parts.sublist(1).join();
+        }
+      }
+
+      return double.parse(cleaned);
+    } catch (e) {
+      debugPrint('❌ Error parsing price "$priceString": $e');
+      return 0.0; // Return 0 as fallback
+    }
+  }
+
+  // Helper method to build price row with numeric values
+  Widget _buildPriceRow(String label, double amount, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 16 : 14,
+            ),
+          ),
+          Text(
+            '₹${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              fontSize: isTotal ? 16 : 14,
+              color: isTotal ? Colors.green : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Place Order Button
   Widget _buildPlaceOrderButton() {
     return Container(
@@ -403,7 +660,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _isLoading ? null : _placeOrder,
+            onPressed: _isLoading
+                ? null
+                : () {
+                    debugPrint('🛒 Place Order button clicked');
+                    _processOrder();
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -415,9 +677,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: _isLoading
                 ? const CircularProgressIndicator(color: Colors.white)
                 : const Text(
-              'Place Order',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+                    'Place Order',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
           ),
         ),
       ),
@@ -425,86 +687,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   // Helper Methods
-  Widget _buildPriceRow(String label, String amount, {bool isTotal = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-              fontSize: isTotal ? 16 : 14,
-            ),
-          ),
-          Text(
-            amount,
-            style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-              fontSize: isTotal ? 16 : 14,
-              color: isTotal ? Colors.green : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _getPaymentIcon(String method) {
-    IconData icon;
-    Color color;
-
     switch (method) {
       case 'Cash on Delivery':
-        icon = Icons.money;
-        color = Colors.green;
-        break;
-      case 'Credit/Debit Card':
-        icon = Icons.credit_card;
-        color = Colors.blue;
-        break;
-      case 'UPI':
-        icon = Icons.phone_android;
-        color = Colors.purple;
-        break;
-      case 'Net Banking':
-        icon = Icons.account_balance;
-        color = Colors.orange;
-        break;
+        return const Icon(Icons.money, color: Colors.green);
+      case 'Contact Seller':
+        return const Icon(Icons.contact_phone, color: Colors.orange);
       default:
-        icon = Icons.payment;
-        color = Colors.grey;
+        return const Icon(Icons.payment, color: Colors.grey);
     }
-
-    return Icon(icon, color: color);
   }
 
   bool _validateStep() {
+    debugPrint('🔍 Validating step: $_currentStep');
     switch (_currentStep) {
       case 0:
         if (_nameController.text.isEmpty ||
             _phoneController.text.isEmpty ||
             _addressController.text.isEmpty ||
-            _cityController.text.isEmpty ||
-            _pincodeController.text.isEmpty) {
-          _showError('Please fill all address fields');
+            _cityController.text.isEmpty) {
+          debugPrint('❌ Address validation failed: missing fields');
+          _showError('Please fill all required address fields');
           return false;
         }
         if (_phoneController.text.length < 10) {
-          _showError('Please enter valid phone number');
+          debugPrint(
+              '❌ Phone validation failed: ${_phoneController.text.length} digits');
+          _showError('Please enter a valid phone number');
           return false;
         }
+        debugPrint('✅ Address validation passed');
         return true;
 
       case 1:
         if (_selectedPaymentMethod == null) {
+          debugPrint('❌ Payment validation failed: no method selected');
           _showError('Please select a payment method');
           return false;
         }
+        debugPrint('✅ Payment validation passed: $_selectedPaymentMethod');
         return true;
 
       default:
+        debugPrint('✅ Step validation passed');
         return true;
     }
   }
@@ -518,52 +743,458 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _placeOrder() async {
+  // Main order processing function
+  Future<void> _processOrder() async {
+    debugPrint('🚀 Starting order processing');
     setState(() => _isLoading = true);
 
-    // Simulate order placement
-    await Future.delayed(const Duration(seconds: 2));
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+    debugPrint('📊 Cart items count: ${cart.items.length}');
+    debugPrint('👤 User ID: ${authProvider.user?.uid}');
+    debugPrint('💳 Payment method: $_selectedPaymentMethod');
 
-      // Clear cart
-      Provider.of<CartProvider>(context, listen: false).clearCart();
+    try {
+      if (cart.items.isEmpty) {
+        debugPrint('❌ Cart is empty');
+        _showError('Your cart is empty');
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // Show success dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Icon(Icons.check_circle, color: Colors.green, size: 60),
-          content: Column(
+      // Group items by seller
+      final Map<String, List<Map<String, dynamic>>> sellerItems = {};
+      final Map<String, String> sellerNames = {};
+      final Map<String, String> sellerPhones = {};
+
+      for (var item in cart.items) {
+        final sellerId = item['sellerId'] ?? 'unknown';
+        final sellerName = item['sellerName'] ?? 'Unknown Seller';
+        final sellerPhone = item['sellerPhone'] ?? 'Not provided';
+
+        debugPrint('📦 Item seller: $sellerName ($sellerId)');
+
+        if (!sellerItems.containsKey(sellerId)) {
+          sellerItems[sellerId] = [];
+          sellerNames[sellerId] = sellerName;
+          sellerPhones[sellerId] = sellerPhone;
+        }
+        sellerItems[sellerId]!.add(item);
+      }
+
+      debugPrint('👥 Found ${sellerItems.length} unique sellers');
+
+      // Track successfully placed orders for chat linking
+      final List<Map<String, dynamic>> placedOrders = [];
+
+      // Create an order for each seller
+      for (var entry in sellerItems.entries) {
+        final sellerId = entry.key;
+        final sellerName = sellerNames[sellerId]!;
+        final sellerPhone = sellerPhones[sellerId]!;
+        final items = entry.value;
+
+        debugPrint('📝 Creating order for seller: $sellerName');
+
+        // Calculate subtotal for this seller's items
+        double subtotal = 0;
+        final orderItems = items.map((item) {
+          double price;
+          if (item['price'] is String) {
+            price = double.parse(item['price']
+                .toString()
+                .replaceAll('₹', '')
+                .replaceAll(',', ''));
+          } else {
+            price = (item['price'] as num).toDouble();
+          }
+          final quantity = item['quantity'] as int;
+          subtotal += price * quantity;
+
+          debugPrint(
+              '  - Item: ${item['name']}, Price: $price, Qty: $quantity');
+
+          return OrderItem(
+            productId: item['productId'] ?? '',
+            productName: item['name'],
+            price: price,
+            quantity: quantity,
+            imageUrl: item['imageUrl'],
+          );
+        }).toList();
+
+        debugPrint('💰 Subtotal for this seller: ₹$subtotal');
+
+        // Calculate delivery fee based on subtotal
+        double deliveryFee = 0.0;
+        if (subtotal < 500) {
+          deliveryFee = 50.0; // Only apply fee if subtotal < 500
+        }
+
+        debugPrint('🚚 Delivery fee for this seller: ₹$deliveryFee');
+
+        // Generate order ID
+        final orderId =
+            FirebaseFirestore.instance.collection('orders').doc().id;
+        debugPrint('🆔 Generated order ID: $orderId');
+
+        // Create order
+        final order = OrderModel(
+          id: orderId,
+          buyerId: authProvider.user!.uid,
+          buyerName: _nameController.text,
+          buyerEmail: authProvider.user!.email ?? '',
+          buyerPhone: _phoneController.text,
+          sellerId: sellerId,
+          sellerName: sellerName,
+          items: orderItems,
+          subtotal: subtotal,
+          deliveryFee: deliveryFee,
+          total: subtotal + deliveryFee,
+          deliveryAddress: _addressController.text,
+          city: _cityController.text,
+          postalCode: _postalCodeController.text.isNotEmpty
+              ? _postalCodeController.text
+              : null,
+          paymentMethod: _selectedPaymentMethod!,
+          orderStatus: _selectedPaymentMethod == 'Cash on Delivery'
+              ? 'confirmed'
+              : 'pending_contact',
+          orderDate: DateTime.now(),
+          expectedDeliveryDate: _selectedPaymentMethod == 'Cash on Delivery'
+              ? DateTime.now().add(const Duration(days: 7))
+              : null,
+        );
+
+        debugPrint('📤 Placing order...');
+        final success = await orderProvider.placeOrder(order);
+
+        if (!success) {
+          debugPrint('❌ Failed to place order for seller: $sellerName');
+          throw Exception('Order placement failed');
+        }
+
+        debugPrint('✅ Order placed successfully for seller: $sellerName');
+
+        // Create chat and link order
+        debugPrint('💬 Creating chat for order...');
+
+        // Use the first item for chat details
+        final firstItem = items.first;
+        final productId = firstItem['productId'] ?? '';
+        final productTitle = firstItem['name'] ?? 'Product';
+        final productImage = firstItem['imageUrl'];
+
+        // Check if chat already exists
+        String? chatId = await chatProvider.getExistingChatId(
+          buyerId: authProvider.user!.uid,
+          sellerId: sellerId,
+          productId: productId,
+        );
+
+        if (chatId == null) {
+          // Create new chat
+          debugPrint('🆕 Creating new chat for seller: $sellerName');
+
+          // Generate a consistent chat ID
+          final newChatId = _generateChatId(
+            authProvider.user!.uid,
+            sellerId,
+            productId,
+          );
+
+          chatId = await chatProvider.getOrCreateChat(
+            chatId: newChatId,
+            buyerId: authProvider.user!.uid,
+            buyerName: _nameController.text,
+            sellerId: sellerId,
+            sellerName: sellerName,
+            productId: productId,
+            productTitle: productTitle,
+            productImage: productImage,
+          );
+        } else {
+          debugPrint('✅ Using existing chat: $chatId');
+        }
+
+        // Send order confirmation message
+        // Create detailed order summary message
+        String orderDetails = '';
+        orderDetails += '🛍️ **NEW ORDER PLACED**\n\n';
+        orderDetails += '━━━━━━━━━━━━━━━━\n';
+        orderDetails += '**Order ID:** ${orderId.substring(0, 8)}...\n';
+        orderDetails +=
+            '**Date:** ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}\n';
+        orderDetails += '━━━━━━━━━━━━━━━━\n\n';
+        orderDetails += '**ITEMS ORDERED:**\n';
+
+// List all items in this order
+        for (var i = 0; i < items.length; i++) {
+          final item = items[i];
+          final itemPrice = double.parse(
+              item['price'].toString().replaceAll('₹', '').replaceAll(',', ''));
+          final quantity = item['quantity'] as int;
+          final totalItemPrice = itemPrice * quantity;
+
+          orderDetails += '${i + 1}. **${item['name']}**\n';
+          orderDetails += '   • Quantity: $quantity\n';
+          orderDetails += '   • Price: ₹${itemPrice.toStringAsFixed(0)} each\n';
+          orderDetails +=
+              '   • Subtotal: ₹${totalItemPrice.toStringAsFixed(0)}\n\n';
+        }
+
+        orderDetails += '**BUYER DETAILS:**\n';
+        orderDetails += '• **Name:** ${_nameController.text}\n';
+        orderDetails += '• **Phone:** ${_phoneController.text}\n';
+        orderDetails += '• **Address:** ${_addressController.text}\n';
+        orderDetails += '• **City:** ${_cityController.text}\n';
+        if (_postalCodeController.text.isNotEmpty) {
+          orderDetails += '• **Postal Code:** ${_postalCodeController.text}\n';
+        }
+        orderDetails += '\n';
+
+        orderDetails += '**PAYMENT METHOD:** ${_selectedPaymentMethod}\n\n';
+
+        if (_selectedPaymentMethod == 'Contact Seller') {
+          orderDetails +=
+              '⚠️ **ACTION REQUIRED:** Please contact the buyer to arrange payment and pickup/delivery.\n';
+        } else {
+          orderDetails += '💰 **Payment:** Cash on Delivery\n';
+        }
+
+        debugPrint('💬 Sending detailed order confirmation message');
+        await chatProvider.sendMessage(
+          chatId: chatId,
+          senderId: authProvider.user!.uid,
+          senderName: _nameController.text,
+          content: orderDetails,
+        );
+
+        // Link order to chat
+        await chatProvider.linkOrderToChat(chatId, orderId);
+
+        debugPrint('✅ Chat linked successfully for order: $orderId');
+
+        // Store order info for success dialog with all details
+        placedOrders.add({
+          'sellerId': sellerId,
+          'sellerName': sellerName,
+          'sellerPhone': sellerPhone,
+          'orderId': orderId,
+          'items': items,
+          'chatId': chatId,
+          'productId': productId,
+          'productTitle': productTitle,
+        });
+      }
+
+      debugPrint('🎉 All orders placed successfully');
+
+      if (mounted) {
+        cart.clearCart();
+        debugPrint('🧹 Cart cleared');
+
+        // Extract data for success dialog
+        final sellerNamesList =
+            placedOrders.map((order) => order['sellerName'] as String).toList();
+        final sellerPhonesList = placedOrders
+            .map((order) => order['sellerPhone'] as String)
+            .toList();
+        final sellerIdsList =
+            placedOrders.map((order) => order['sellerId'] as String).toList();
+        final chatIdsList =
+            placedOrders.map((order) => order['chatId'] as String).toList();
+        final orderIdsList =
+            placedOrders.map((order) => order['orderId'] as String).toList();
+        final productIdsList =
+            placedOrders.map((order) => order['productId'] as String).toList();
+        final productTitlesList = placedOrders
+            .map((order) => order['productTitle'] as String)
+            .toList();
+
+        // Navigate away from checkout screen before showing success
+        // First, pop the checkout screen
+        Navigator.pop(context);
+
+        // Then show success dialog on the previous screen
+        _showOrderSuccessDialog(
+          sellerNames: sellerNamesList,
+          sellerPhones: sellerPhonesList,
+          sellerIds: sellerIdsList,
+          chatIds: chatIdsList,
+          orderIds: orderIdsList,
+          productIds: productIdsList,
+          productTitles: productTitlesList,
+          placedOrders: placedOrders,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error in order processing: $e');
+      if (mounted) {
+        _showError('Failed to place order: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        debugPrint('🏁 Order processing finished');
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Helper method to generate consistent chat ID
+  String _generateChatId(String userId1, String userId2, String productId) {
+    final ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}_$productId';
+  }
+
+  //  Success dialog that shows on the previous screen
+  // Success dialog with proper navigation using a captured navigator
+  void _showOrderSuccessDialog({
+    required List<String> sellerNames,
+    required List<String> sellerPhones,
+    required List<String> sellerIds,
+    required List<String> chatIds,
+    required List<String> orderIds,
+    required List<String> productIds,
+    required List<String> productTitles,
+    required List<Map<String, dynamic>> placedOrders,
+  }) {
+    debugPrint('📱 Showing success dialog');
+    final isContactSeller = _selectedPaymentMethod == 'Contact Seller';
+
+    // Capture the navigator before showing the dialog
+    final navigator = Navigator.of(context);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Icon(isContactSeller ? Icons.info_outline : Icons.check_circle,
+            color: isContactSeller ? Colors.orange : Colors.green, size: 60),
+        content: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: const [
+            children: [
               Text(
-                'Order Placed Successfully!',
-                style: TextStyle(
+                isContactSeller
+                    ? 'Order Request Sent!'
+                    : 'Order Placed Successfully!',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 10),
-              Text(
-                'Thank you for shopping sustainably with KindCart',
-                textAlign: TextAlign.center,
-              ),
+              const SizedBox(height: 10),
+              if (isContactSeller) ...[
+                const Text(
+                  'Please contact the seller(s) to arrange payment and pickup:',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 15),
+                ...List.generate(sellerNames.length, (index) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          sellerNames[index],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Phone: ${sellerPhones[index]}',
+                          style: const TextStyle(color: Colors.blue),
+                        ),
+                        const SizedBox(height: 8),
+                        // Button to open specific chat with this seller
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            debugPrint(
+                                '👆 Chat with Seller clicked for ${sellerNames[index]}');
+                            // Close the dialog
+                            Navigator.pop(dialogContext);
+
+                            // Use the captured navigator to navigate
+                            navigator.push(
+                              MaterialPageRoute(
+                                builder: (context) => UserChatScreen(
+                                  chatId: chatIds[index],
+                                  otherUserName: sellerNames[index],
+                                  productTitle: productTitles[index],
+                                  otherUserId: sellerIds[index],
+                                  productId: productIds[index],
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat, size: 18),
+                          label: const Text('Chat with Seller'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 36),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Order ID: ${orderIds[index]}',
+                          style:
+                              TextStyle(fontSize: 10, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 10),
+                const Text(
+                  'The seller has been notified and will respond soon',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ] else ...[
+                const Text(
+                  'Thank you for shopping sustainably with KindCart',
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
-          actions: [
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              debugPrint('👆 Continue Shopping clicked');
+              Navigator.pop(dialogContext);
+              // Use the captured navigator to go home
+              navigator.popUntil((route) => route.isFirst);
+            },
+            child: const Text('Continue Shopping'),
+          ),
+          if (isContactSeller)
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.popUntil(context, (route) => route.isFirst); // Go to home
+                debugPrint('👆 View All Chats clicked');
+                Navigator.pop(dialogContext);
+                // Use the captured navigator to go to chats
+                navigator.push(
+                  MaterialPageRoute(
+                    builder: (context) => const ChatsListScreen(),
+                  ),
+                );
               },
-              child: const Text('Continue Shopping'),
+              child: const Text('View All Chats'),
             ),
-          ],
-        ),
-      );
-    }
+        ],
+      ),
+    );
   }
 }
