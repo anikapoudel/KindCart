@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
+import '../providers/order_provider.dart';
 import '../theme_provider.dart';
 import 'auth_screen.dart';
 import '../admin/approval_screen.dart';
 import 'addproduct_screen.dart';
 import 'adddonation_screen.dart';
 import 'wishlist_screen.dart';
-import 'my_listings_screen.dart'; // You'll need to create this
+import 'my_listings_screen.dart';
+import 'cart_screen.dart';
+import 'my_orders_screen.dart';
+import 'about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,12 +34,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadRoleSpecificData() async {
-    // Get providers without listening for changes
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final productProvider =
+        Provider.of<ProductProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
 
-    if (authProvider.isAuthenticated && authProvider.userRole == 'Seller') {
-      await productProvider.loadUserProducts(authProvider.user!.uid);
+    if (authProvider.isAuthenticated) {
+      if (authProvider.userRole == 'Seller') {
+        await productProvider.loadUserProducts(authProvider.user!.uid);
+      }
+      if (authProvider.userRole == 'Buyer') {
+        debugPrint('📦 Loading orders for buyer in profile screen...');
+        await orderProvider.loadBuyerOrders(authProvider.user!.uid);
+        debugPrint('✅ Loaded ${orderProvider.buyerOrders.length} orders');
+      }
     }
   }
 
@@ -51,17 +63,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            icon: Icon(
+                themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => themeProvider.toggleTheme(),
           ),
           // Role-specific action buttons
-          if (authProvider.userRole == 'Seller' && authProvider.isSellerApproved)
+          if (authProvider.userRole == 'Seller' &&
+              authProvider.isSellerApproved)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                  MaterialPageRoute(
+                      builder: (context) => const AddProductScreen()),
                 );
               },
               tooltip: 'Add Product',
@@ -78,41 +93,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: authProvider.isAuthenticated
           ? RefreshIndicator(
-        onRefresh: () async {
-          // Refresh both auth and role-specific data
-          await authProvider.refreshUser();
-          await _loadRoleSpecificData();
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // SECTION 1: PROFILE HEADER (Common for all)
-              _buildProfileHeader(authProvider),
+              onRefresh: () async {
+                // Refresh both auth and role-specific data
+                await authProvider.refreshUser();
+                await _loadRoleSpecificData();
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // SECTION 1: PROFILE HEADER (Common for all)
+                    _buildProfileHeader(authProvider),
 
-              const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-              // SECTION 2: ROLE-SPECIFIC CONTENT
-              if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
-              if (authProvider.userRole == 'Seller') _buildSellerContent(authProvider),
-              if (authProvider.userRole == 'Donor') _buildDonorContent(),
-              if (authProvider.userRole == 'Admin') _buildAdminContent(),
+                    // SECTION 2: ROLE-SPECIFIC CONTENT
+                    if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
+                    if (authProvider.userRole == 'Seller')
+                      _buildSellerContent(authProvider),
+                    if (authProvider.userRole == 'Donor') _buildDonorContent(),
+                    if (authProvider.userRole == 'Admin') _buildAdminContent(),
 
-              const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-              // SECTION 3: COMMON SETTINGS (All users)
-              _buildCommonSettings(),
+                    // SECTION 3: COMMON SETTINGS (All users)
+                    _buildCommonSettings(),
 
-              const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-              // SECTION 4: LOGOUT
-              _buildLogoutButton(authProvider),
+                    // SECTION 4: LOGOUT
+                    _buildLogoutButton(authProvider),
 
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      )
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            )
           : _buildLoginPrompt(),
     );
   }
@@ -151,10 +167,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // SECTION 1: PROFILE HEADER
   Widget _buildProfileHeader(AuthProvider auth) {
     final user = auth.user;
-    // ✅ Use the userData getter from AuthProvider
     final userData = auth.userData;
 
-    final userName = userData?['name'] ?? user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
+    final userName = userData?['name'] ??
+        user?.displayName ??
+        user?.email?.split('@')[0] ??
+        'User';
     final userEmail = user?.email ?? 'No email';
     final userPhone = userData?['phone'] ?? '';
     final isVerified = auth.isEmailVerified;
@@ -172,16 +190,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: _getRoleColor(auth.userRole).withAlpha(30),
-                  backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
+                  backgroundImage: user?.photoURL != null
+                      ? NetworkImage(user!.photoURL!)
+                      : null,
                   child: user?.photoURL == null
                       ? Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: _getRoleColor(auth.userRole),
-                    ),
-                  )
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: _getRoleColor(auth.userRole),
+                          ),
+                        )
                       : null,
                 ),
                 if (isVerified)
@@ -194,7 +214,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: Colors.green,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.check, color: Colors.white, size: 16),
+                      child: const Icon(Icons.check,
+                          color: Colors.white, size: 16),
                     ),
                   ),
               ],
@@ -211,7 +232,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Expanded(
                         child: Text(
                           userName,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -225,14 +247,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(userEmail, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                  Text(userEmail,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14)),
                   if (userPhone.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(userPhone, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    Text(userPhone,
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 12)),
                   ],
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
                       color: _getRoleColor(auth.userRole).withAlpha(20),
                       borderRadius: BorderRadius.circular(20),
@@ -256,44 +282,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // SECTION 2: ROLE-SPECIFIC CONTENT
-  // ----- BUYER CONTENT -----
+  // BUYER CONTENT
   Widget _buildBuyerContent() {
+    final orderProvider = Provider.of<OrderProvider>(context);
+    final pendingOrdersCount = orderProvider.buyerOrders
+        .where((o) =>
+            o.orderStatus == 'pending' || o.orderStatus == 'pending_contact')
+        .length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Shopping', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text(
+          'Shopping',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         Card(
+          elevation: 2,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
-              _buildMenuItem(
+              // My Orders with badge for pending orders
+              _buildMenuItemWithBadge(
                 icon: Icons.shopping_bag,
                 title: 'My Orders',
                 subtitle: 'Track your purchases',
-                onTap: () => _showComingSoon(),
+                badgeCount: pendingOrdersCount,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const MyOrdersScreen()),
+                  );
+                },
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              // My Wishlist
               _buildMenuItem(
                 icon: Icons.favorite,
-                title: 'Wishlist',
+                title: 'My Wishlist',
                 subtitle: 'Items you saved',
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const WishlistScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const WishlistScreen()),
                   );
                 },
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              // My Cart
               _buildMenuItem(
-                icon: Icons.location_on,
-                title: 'Saved Addresses',
-                subtitle: 'Manage delivery locations',
-                onTap: () => _showComingSoon(),
-              ),
-              _buildMenuItem(
-                icon: Icons.payment,
-                title: 'Payment Methods',
-                subtitle: 'Add or remove payment options',
-                onTap: () => _showComingSoon(),
+                icon: Icons.shopping_cart,
+                title: 'My Cart',
+                subtitle: 'Items ready to purchase',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CartScreen()),
+                  );
+                },
               ),
             ],
           ),
@@ -302,12 +352,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ----- SELLER CONTENT -----
+  // SELLER CONTENT
   Widget _buildSellerContent(AuthProvider auth) {
     return Consumer<ProductProvider>(
       builder: (context, productProvider, child) {
-        final activeListings = productProvider.userProducts.where((p) => p.isAvailable).length;
-        final soldItems = productProvider.userProducts.where((p) => !p.isAvailable).length;
+        final activeListings =
+            productProvider.userProducts.where((p) => p.isAvailable).length;
+        final soldItems =
+            productProvider.userProducts.where((p) => !p.isAvailable).length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,7 +382,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: Colors.orange.shade100,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.hourglass_empty, color: Colors.orange),
+                      child: const Icon(Icons.hourglass_empty,
+                          color: Colors.orange),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -345,7 +398,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             auth.sellerApprovalRequested
                                 ? 'Your request is being reviewed'
                                 : 'Complete your seller profile',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.grey[600], fontSize: 12),
                           ),
                         ],
                       ),
@@ -370,7 +424,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
 
             // Stats cards
-            const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Overview',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -391,15 +446,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Colors.blue,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    '4.8',
-                    'Rating',
-                    Icons.star,
-                    Colors.amber,
-                  ),
-                ),
               ],
             ),
 
@@ -409,10 +455,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('My Listings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text('My Listings',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 TextButton(
                   onPressed: () {
-                    // FIXED: Navigate to all listings
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -431,7 +478,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    Icon(Icons.inventory_2_outlined, size: 50, color: Colors.grey[400]),
+                    Icon(Icons.inventory_2_outlined,
+                        size: 50, color: Colors.grey[400]),
                     const SizedBox(height: 12),
                     const Text('No listings yet'),
                     const SizedBox(height: 8),
@@ -439,7 +487,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => const AddProductScreen()),
                         );
                       },
                       child: const Text('Add Your First Product'),
@@ -452,7 +501,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 200,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: productProvider.userProducts.length > 5 ? 5 : productProvider.userProducts.length,
+                  itemCount: productProvider.userProducts.length > 5
+                      ? 5
+                      : productProvider.userProducts.length,
                   itemBuilder: (context, index) {
                     final product = productProvider.userProducts[index];
                     return GestureDetector(
@@ -474,18 +525,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: Colors.grey[200],
-                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                    borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(12)),
                                     image: product.imageUrls.isNotEmpty
                                         ? DecorationImage(
-                                      image: NetworkImage(product.imageUrls.first),
-                                      fit: BoxFit.cover,
-                                    )
+                                            image: NetworkImage(
+                                                product.imageUrls.first),
+                                            fit: BoxFit.cover,
+                                          )
                                         : null,
                                   ),
                                   child: product.imageUrls.isEmpty
                                       ? const Center(
-                                    child: Icon(Icons.image_not_supported, color: Colors.grey),
-                                  )
+                                          child: Icon(Icons.image_not_supported,
+                                              color: Colors.grey),
+                                        )
                                       : null,
                                 ),
                               ),
@@ -498,11 +552,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       product.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600),
                                     ),
                                     Text(
                                       '₹${product.price.toStringAsFixed(0)}',
-                                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     Row(
                                       children: [
@@ -511,15 +568,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           height: 8,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: product.isAvailable ? Colors.green : Colors.red,
+                                            color: product.isAvailable
+                                                ? Colors.green
+                                                : Colors.red,
                                           ),
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          product.isAvailable ? 'Available' : 'Sold',
+                                          product.isAvailable
+                                              ? 'Available'
+                                              : 'Sold',
                                           style: TextStyle(
                                             fontSize: 10,
-                                            color: product.isAvailable ? Colors.green : Colors.red,
+                                            color: product.isAvailable
+                                                ? Colors.green
+                                                : Colors.red,
                                           ),
                                         ),
                                       ],
@@ -536,36 +599,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-            const SizedBox(height: 24),
-
-            // Seller tools
-            const Text('Seller Tools', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Card(
-              child: Column(
-                children: [
-                  _buildMenuItem(
-                    icon: Icons.message,
-                    title: 'Messages',
-                    subtitle: 'Chat with buyers',
-                    onTap: () => Navigator.pushNamed(context, '/chat'),
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.analytics,
-                    title: 'Analytics',
-                    subtitle: 'View your sales performance',
-                    onTap: () => _showComingSoon(),
-                  ),
-                ],
-              ),
-            ),
+            // Seller Tools section
           ],
         );
       },
     );
   }
 
-// ----- DONOR CONTENT (FIXED - NO BLANK SCREEN) -----
+  //  DONOR CONTENT
   Widget _buildDonorContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,11 +616,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-
-        // Donor Quick Actions (Working)
         Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -590,8 +630,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 16),
-
-                // Quick action buttons
                 Row(
                   children: [
                     Expanded(
@@ -602,7 +640,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const AddDonationScreen()),
+                            MaterialPageRoute(
+                                builder: (_) => const AddDonationScreen()),
                           );
                         },
                       ),
@@ -614,7 +653,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         label: 'Donor Home',
                         color: Colors.green,
                         onTap: () {
-                          Navigator.pop(context); // Go back to donor home
+                          Navigator.pop(context);
                         },
                       ),
                     ),
@@ -624,19 +663,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
-
         const SizedBox(height: 24),
-
-        // Donor Settings
         const Text(
           'Preferences',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-
         Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Column(
             children: [
               _buildMenuItem(
@@ -659,7 +695,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-// Helper widget for donor action buttons
+  // Helper widget for donor action buttons
   Widget _buildDonorActionButton({
     required IconData icon,
     required String label,
@@ -694,7 +730,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ----- ADMIN CONTENT -----
+  // ADMIN CONTENT
   Widget _buildAdminContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -718,7 +754,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SellerApprovalScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const SellerApprovalScreen()),
                   );
                 },
               ),
@@ -748,9 +785,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text('Settings',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         Card(
+          elevation: 2,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
               _buildMenuItem(
@@ -759,23 +800,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: 'Manage your alerts',
                 onTap: () => _showComingSoon(),
               ),
-              _buildMenuItem(
-                icon: Icons.lock,
-                title: 'Privacy & Security',
-                subtitle: 'Manage your data',
-                onTap: () => _showComingSoon(),
-              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
               _buildMenuItem(
                 icon: Icons.help,
                 title: 'Help & Support',
                 subtitle: 'FAQs and contact us',
                 onTap: () => _showComingSoon(),
               ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
               _buildMenuItem(
                 icon: Icons.info,
                 title: 'About KindCart',
                 subtitle: 'Learn about our mission',
-                onTap: () => Navigator.pushNamed(context, '/about'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const AboutScreen()),
+                  );
+                },
               ),
             ],
           ),
@@ -800,6 +843,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // method for menu items with badge
+  Widget _buildMenuItemWithBadge({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int badgeCount,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.green),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (badgeCount > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$badgeCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+          const Icon(Icons.arrow_forward_ios, size: 16),
+        ],
+      ),
+      onTap: onTap,
+    );
+  }
+
   Widget _buildAdminMenuItem({
     required IconData icon,
     required String title,
@@ -815,13 +897,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Icon(icon, color: Colors.white),
         title: Text(title, style: const TextStyle(color: Colors.white)),
         subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+        trailing:
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
         onTap: onTap,
       ),
     );
   }
 
-  Widget _buildStatCard(String value, String label, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String value, String label, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -832,21 +916,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         ],
       ),
-    );
-  }
-
-  Widget _buildImpactItem(String value, String label, IconData icon, Color color) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 30),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-      ],
     );
   }
 
@@ -878,7 +953,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.green.withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person_outline, size: 80, color: Colors.green),
+              child: const Icon(Icons.person_outline,
+                  size: 80, color: Colors.green),
             ),
             const SizedBox(height: 30),
             const Text(
@@ -913,13 +989,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // DIALOGS - FIXED with proper mounted checks
+  // DIALOGS
   void _showEditProfileDialog(AuthProvider auth) {
-    // Get fresh data
     final userData = auth.userData;
 
     final nameController = TextEditingController(text: userData?['name'] ?? '');
-    final phoneController = TextEditingController(text: userData?['phone'] ?? '');
+    final phoneController =
+        TextEditingController(text: userData?['phone'] ?? '');
     String? selectedRole = auth.userRole;
     bool isLoading = false;
 
@@ -961,61 +1037,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       items: const [
                         DropdownMenuItem(value: 'Buyer', child: Text('Buyer')),
-                        DropdownMenuItem(value: 'Seller', child: Text('Seller')),
+                        DropdownMenuItem(
+                            value: 'Seller', child: Text('Seller')),
                         DropdownMenuItem(value: 'Donor', child: Text('Donor')),
                       ],
                       onChanged: isLoading
                           ? null
                           : (value) {
-                        setDialogState(() => selectedRole = value);
-                      },
+                              setDialogState(() => selectedRole = value);
+                            },
                     ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isLoading ? null : () {
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  },
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                        },
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
                   onPressed: isLoading
                       ? null
                       : () async {
-                    setDialogState(() => isLoading = true);
+                          setDialogState(() => isLoading = true);
 
-                    final success = await auth.updateUserProfile(
-                      name: nameController.text.isNotEmpty ? nameController.text : null,
-                      phone: phoneController.text.isNotEmpty ? phoneController.text : null,
-                      role: selectedRole,
-                    );
+                          final success = await auth.updateUserProfile(
+                            name: nameController.text.isNotEmpty
+                                ? nameController.text
+                                : null,
+                            phone: phoneController.text.isNotEmpty
+                                ? phoneController.text
+                                : null,
+                            role: selectedRole,
+                          );
 
-                    // Check if dialog is still mounted before popping
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
 
-                    // Check if parent widget is still mounted before showing snackbar
-                    if (success && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Profile updated'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                          if (success && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Profile updated'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   child: isLoading
                       ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Text('Save'),
                 ),
               ],
@@ -1043,15 +1125,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
-              // Close dialog first
               if (dialogContext.mounted) {
                 Navigator.pop(dialogContext);
               }
 
-              // Then sign out
               await auth.signOut();
 
-              // Show snackbar if screen is still mounted
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
