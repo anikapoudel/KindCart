@@ -22,8 +22,6 @@ class OrderModel {
   final DateTime orderDate;
   final DateTime? expectedDeliveryDate;
   final String? notes;
-
-  // NEW FIELDS
   final String? trackingNumber;
   final bool isReviewed;
   final double? rating;
@@ -60,13 +58,21 @@ class OrderModel {
 
   // Status helpers
   bool get isPending => orderStatus == 'pending';
+
   bool get isConfirmed => orderStatus == 'confirmed';
+
   bool get isProcessing => orderStatus == 'processing';
+
   bool get isShipped => orderStatus == 'shipped';
+
   bool get isDelivered => orderStatus == 'delivered';
+
   bool get isCancelled => orderStatus == 'cancelled';
+
   bool get isPendingContact => orderStatus == 'pending_contact';
+
   bool get isContacted => orderStatus == 'contacted';
+
   bool get isCompleted => orderStatus == 'completed';
 
   Color get statusColor {
@@ -115,7 +121,6 @@ class OrderModel {
   }
 
   //  method:
-
   OrderModel copyWithStatus(String newStatus) {
     return OrderModel(
       id: this.id,
@@ -163,7 +168,8 @@ class OrderModel {
       paymentMethod: map['paymentMethod'] ?? '',
       orderStatus: map['orderStatus'] ?? 'pending',
       orderDate: (map['orderDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      expectedDeliveryDate: (map['expectedDeliveryDate'] as Timestamp?)?.toDate(),
+      expectedDeliveryDate:
+          (map['expectedDeliveryDate'] as Timestamp?)?.toDate(),
       notes: map['notes'],
       trackingNumber: map['trackingNumber'],
       isReviewed: map['isReviewed'] ?? false,
@@ -200,9 +206,8 @@ class OrderModel {
       'isReviewed': isReviewed,
       'rating': rating,
       'reviewText': reviewText,
-      'deliveredDate': deliveredDate != null
-          ? Timestamp.fromDate(deliveredDate!)
-          : null,
+      'deliveredDate':
+          deliveredDate != null ? Timestamp.fromDate(deliveredDate!) : null,
     };
   }
 }
