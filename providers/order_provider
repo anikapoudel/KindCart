@@ -1,0 +1,317 @@
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/order_model.dart';
+import '../providers/cart_provider.dart';
+
+class OrderProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  List<OrderModel> _buyerOrders = [];
+  List<OrderModel> _sellerOrders = [];
+  bool _isLoading = false;
+
+  List<OrderModel> get buyerOrders => _buyerOrders;
+
+  List<OrderModel> get sellerOrders => _sellerOrders;
+
+  bool get isLoading => _isLoading;
+
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  // Place a new order
+  Future<bool> placeOrder(OrderModel order) async {
+    debugPrint('📤 OrderProvider.placeOrder called for order: ${order.id}');
+    debugPrint('   Order details:');
+    debugPrint('   - Buyer: ${order.buyerName} (${order.buyerId})');
+    debugPrint('   - Seller: ${order.sellerName} (${order.sellerId})');
+    debugPrint('   - Items count: ${order.items.length}');
+
+    _setLoading(true);
+
+    try {
+      // Validate order data before saving
+      if (order.items.isEmpty) {
+        throw Exception('Cannot place order with no items');
+      }
+
+      // Validate all product IDs are present
+      for (var item in order.items) {
+        if (item.productId.isEmpty) {
+          throw Exception('Product ID is empty for item: ${item.productName}');
+        }
+        debugPrint('   ✓ Product ID valid: ${item.productId}');
+      }
+
+      // Save order to Firestore
+      debugPrint('💾 Saving order to Firestore...');
+      await _firestore.collection('orders').doc(order.id).set(order.toMap());
+      debugPrint('✅ Order saved to Firestore successfully');
+
+      // Update product availability
+      debugPrint('🔄 Updating product availability...');
+      for (var item in order.items) {
+        debugPrint(
+            '  - Updating product: ${item.productId} (${item.productName})');
+
+        try {
+          await _firestore.collection('products').doc(item.productId).update({
+            'isAvailable': false,
+            'soldTo': order.buyerId,
+            'soldToName': order.buyerName,
+            'soldDate': Timestamp.now(),
+            'orderId': order.id,
+          });
+          debugPrint('    ✅ Product ${item.productId} updated successfully');
+        } catch (e) {
+          debugPrint('    ❌ Failed to update product ${item.productId}: $e');
+        }
+      }
+      debugPrint('✅ Product availability update completed');
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error placing order: $e');
+      debugPrint('Stack trace: ${StackTrace.current}');
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Load buyer's orders
+  Future<void> loadBuyerOrders(String buyerId) async {
+    debugPrint('🔄 Loading buyer orders for: $buyerId');
+    _setLoading(true);
+
+    try {
+      final snapshot = await _firestore
+          .collection('orders')
+          .where('buyerId', isEqualTo: buyerId)
+          .orderBy('orderDate', descending: true)
+          .get();
+
+      _buyerOrders = snapshot.docs
+          .map((doc) => OrderModel.fromMap(doc.id, doc.data()))
+          .toList();
+
+      debugPrint('✅ Loaded ${_buyerOrders.length} buyer orders');
+    } catch (e) {
+      debugPrint('❌ Error loading buyer orders: $e');
+      _buyerOrders = [];
+    }
+
+    _setLoading(false);
+  }
+
+  // Load seller's orders
+  Future<void> loadSellerOrders(String sellerId) async {
+    debugPrint('🔄 Loading seller orders for: $sellerId');
+    _setLoading(true);
+
+    try {
+      final snapshot = await _firestore
+          .collection('orders')
+          .where('sellerId', isEqualTo: sellerId)
+          .orderBy('orderDate', descending: true)
+          .get();
+
+      _sellerOrders = snapshot.docs
+          .map((doc) => OrderModel.fromMap(doc.id, doc.data()))
+          .toList();
+
+      debugPrint('✅ Loaded ${_sellerOrders.length} seller orders');
+    } catch (e) {
+      debugPrint('❌ Error loading seller orders: $e');
+      _sellerOrders = [];
+    }
+
+    _setLoading(false);
+  }
+
+  // Get a specific order by ID
+  Future<OrderModel?> getOrderById(String orderId) async {
+    try {
+      final doc = await _firestore.collection('orders').doc(orderId).get();
+
+      if (doc.exists) {
+        return OrderModel.fromMap(doc.id, doc.data()!);
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting order $orderId: $e');
+    }
+    return null;
+  }
+
+  // Complete order (mark as delivered and update products)
+  Future<bool> completeOrder(String orderId, List<OrderItem> items) async {
+    try {
+      _setLoading(true);
+
+      // Use a batch write for atomic operation
+      final WriteBatch batch = _firestore.batch();
+
+      // Update order status
+      final orderRef = _firestore.collection('orders').doc(orderId);
+      batch.update(orderRef, {
+        'orderStatus': 'delivered',
+        'deliveredAt': FieldValue.serverTimestamp(),
+      });
+
+      // Mark all products as sold
+      for (var item in items) {
+        final productRef =
+            _firestore.collection('products').doc(item.productId);
+        batch.update(productRef, {
+          'isAvailable': false,
+          'soldAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Commit the batch
+      await batch.commit();
+
+      // Update local orders lists
+      // Update in seller orders
+      final sellerIndex = _sellerOrders.indexWhere((o) => o.id == orderId);
+      if (sellerIndex != -1) {
+        final updatedOrder =
+            _sellerOrders[sellerIndex].copyWithStatus('delivered');
+        _sellerOrders[sellerIndex] = updatedOrder;
+      }
+
+      // Update in buyer orders
+      final buyerIndex = _buyerOrders.indexWhere((o) => o.id == orderId);
+      if (buyerIndex != -1) {
+        final updatedOrder =
+            _buyerOrders[buyerIndex].copyWithStatus('delivered');
+        _buyerOrders[buyerIndex] = updatedOrder;
+      }
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      print('Error completing order: $e');
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Update order status
+  Future<void> updateOrderStatus(String orderId, String status) async {
+    debugPrint('🔄 Updating order $orderId status to: $status');
+
+    try {
+      await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .update({'orderStatus': status});
+
+      // Update local lists
+      final buyerIndex = _buyerOrders.indexWhere((o) => o.id == orderId);
+      if (buyerIndex != -1) {
+        final updatedOrder = _buyerOrders[buyerIndex].copyWithStatus(status);
+        _buyerOrders[buyerIndex] = updatedOrder;
+      }
+
+      final sellerIndex = _sellerOrders.indexWhere((o) => o.id == orderId);
+      if (sellerIndex != -1) {
+        final updatedOrder = _sellerOrders[sellerIndex].copyWithStatus(status);
+        _sellerOrders[sellerIndex] = updatedOrder;
+      }
+
+      debugPrint('✅ Order status updated successfully');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error updating order status: $e');
+    }
+  }
+
+  // Cancel order (only if pending)
+  Future<bool> cancelOrder(String orderId, String userId) async {
+    debugPrint('🔄 Attempting to cancel order: $orderId');
+
+    try {
+      final order = await getOrderById(orderId);
+
+      if (order == null) {
+        debugPrint('❌ Order not found');
+        return false;
+      }
+
+      // Check if user is authorized to cancel
+      if (order.buyerId != userId && order.sellerId != userId) {
+        debugPrint('❌ User not authorized to cancel this order');
+        return false;
+      }
+
+      // Only allow cancellation if order is pending
+      if (order.orderStatus != 'pending' &&
+          order.orderStatus != 'pending_contact') {
+        debugPrint(
+            '❌ Order cannot be cancelled (status: ${order.orderStatus})');
+        return false;
+      }
+
+      debugPrint('✅ Cancelling order...');
+
+      // Update order status to cancelled
+      await _firestore.collection('orders').doc(orderId).update({
+        'orderStatus': 'cancelled',
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'cancelledBy': userId,
+      });
+
+      debugPrint('✅ Order status updated to cancelled');
+
+      // Try to restore product availability
+      for (var item in order.items) {
+        try {
+          await _firestore.collection('products').doc(item.productId).update({
+            'isAvailable': true,
+            'soldTo': FieldValue.delete(),
+            'soldDate': FieldValue.delete(),
+            'orderId': FieldValue.delete(),
+          });
+          debugPrint('  ✅ Product ${item.productId} restored');
+        } catch (e) {
+          debugPrint('  ⚠️ Could not restore product ${item.productId}: $e');
+        }
+      }
+
+      // Refresh local lists
+      await loadBuyerOrders(order.buyerId);
+      if (order.sellerId == userId) {
+        await loadSellerOrders(order.sellerId);
+      }
+
+      debugPrint('✅ Order cancelled successfully');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error in cancelOrder: $e');
+
+      // Check if it's a permission error
+      if (e.toString().contains('permission-denied')) {
+        debugPrint('⚠️ Permission denied. Check Firestore rules.');
+      }
+
+      // Check if the order was actually cancelled despite the error
+      final updatedOrder = await getOrderById(orderId);
+      if (updatedOrder != null && updatedOrder.orderStatus == 'cancelled') {
+        debugPrint('✅ Order was actually cancelled despite error!');
+        return true;
+      }
+
+      return false;
+    }
+  }
+
+  // Clear all orders
+  void clearOrders() {
+    _buyerOrders.clear();
+    _sellerOrders.clear();
+    notifyListeners();
+  }
+}
