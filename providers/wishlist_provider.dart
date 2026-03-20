@@ -1,4 +1,3 @@
-// lib/providers/wishlist_provider.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +9,9 @@ class WishlistProvider extends ChangeNotifier {
   bool _isLoading = false;
 
   List<ProductModel> get items => _items;
+
   int get itemCount => _items.length;
+
   bool get isLoading => _isLoading;
 
   // Load wishlist from Firestore
@@ -36,7 +37,8 @@ class WishlistProvider extends ChangeNotifier {
             .get();
 
         if (productDoc.exists) {
-          final product = ProductModel.fromMap(productDoc.id, productDoc.data()!);
+          final product =
+              ProductModel.fromMap(productDoc.id, productDoc.data()!);
           wishlistItems.add(product);
         }
       }
@@ -68,8 +70,13 @@ class WishlistProvider extends ChangeNotifier {
   }
 
   // Add to wishlist
-  Future<void> addToWishlist(String userId, ProductModel product) async {
+  Future<bool> addToWishlist(String userId, ProductModel product) async {
     try {
+      debugPrint('➕ Adding to wishlist:');
+      debugPrint('  - User ID: $userId');
+      debugPrint('  - Product ID: ${product.id}');
+
+      // First, add to wishlist subcollection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -80,30 +87,43 @@ class WishlistProvider extends ChangeNotifier {
         'addedAt': FieldValue.serverTimestamp(),
       });
 
-      // Update product wishlist count
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(product.id)
-          .update({
-        'wishlistCount': FieldValue.increment(1),
-      });
+      debugPrint('✅ Successfully added to wishlist in Firestore');
 
-      // Add to local list if not already present
+      // update product wishlist count
+      try {
+        await FirebaseFirestore.instance
+            .collection('products')
+            .doc(product.id)
+            .update({
+          'wishlistCount': FieldValue.increment(1),
+        });
+        debugPrint('✅ Updated product wishlist count');
+      } catch (e) {
+        // Log but don't fail
+        debugPrint('⚠️ Could not update product wishlist count: $e');
+      }
+
+      // Add to local list
       if (!_items.any((item) => item.id == product.id)) {
         _items.add(product);
       }
 
       notifyListeners();
-      debugPrint('✅ Added to wishlist: ${product.id}');
-    } catch (e) {
-      debugPrint('❌ Error adding to wishlist: $e');
-      rethrow;
+      return true;
+    } on FirebaseException catch (e) {
+      debugPrint('❌ Firebase error adding to wishlist:');
+      debugPrint('  - Code: ${e.code}');
+      debugPrint('  - Message: ${e.message}');
+      return false;
     }
   }
 
-  // Remove from wishlist
-  Future<void> removeFromWishlist(String userId, String productId) async {
+  Future<bool> removeFromWishlist(String userId, String productId,
+      {bool showSnackbar = true}) async {
     try {
+      debugPrint('➖ Removing from wishlist: $productId');
+
+      // Remove from wishlist subcollection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -111,26 +131,31 @@ class WishlistProvider extends ChangeNotifier {
           .doc(productId)
           .delete();
 
-      // Update product wishlist count
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(productId)
-          .update({
-        'wishlistCount': FieldValue.increment(-1),
-      });
+      // update product wishlist count
+      try {
+        await FirebaseFirestore.instance
+            .collection('products')
+            .doc(productId)
+            .update({
+          'wishlistCount': FieldValue.increment(-1),
+        });
+      } catch (e) {
+        debugPrint('⚠️ Could not update product wishlist count: $e');
+      }
 
       // Remove from local list
       _items.removeWhere((item) => item.id == productId);
 
       notifyListeners();
-      debugPrint('✅ Removed from wishlist: $productId');
-    } catch (e) {
-      debugPrint('❌ Error removing from wishlist: $e');
-      rethrow;
+      return true;
+    } on FirebaseException catch (e) {
+      debugPrint(
+          '❌ Firebase error removing from wishlist: ${e.code} - ${e.message}');
+      return false;
     }
   }
 
-  // Toggle wishlist (add if not exists, remove if exists)
+  // Toggle wishlist
   Future<void> toggleWishlist(String userId, ProductModel product) async {
     final isInList = await isInWishlist(userId, product.id);
 
@@ -163,6 +188,7 @@ class WishlistProvider extends ChangeNotifier {
       debugPrint('❌ Error clearing wishlist: $e');
     }
   }
+
   void sortItems(String sortBy) {
     switch (sortBy) {
       case 'newest':
@@ -177,6 +203,7 @@ class WishlistProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
