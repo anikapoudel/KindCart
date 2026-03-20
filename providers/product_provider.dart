@@ -23,6 +23,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel> _userProducts = [];
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isDisposed = false; // Track if provider is disposed
 
   // Filters and search
   String _searchQuery = '';
@@ -31,12 +32,30 @@ class ProductProvider extends ChangeNotifier {
   double _maxPrice = 100000;
   bool _sortByNewest = true;
 
+  // Add sort by price high to low
+  bool _sortByPriceHigh = false;
+
   // Getters
   List<ProductModel> get products => _products;
+
   List<ProductModel> get userProducts => _userProducts;
+
   bool get isLoading => _isLoading;
+
   String? get errorMessage => _errorMessage;
+
   bool get sortByNewest => _sortByNewest;
+
+  //  Getter for price high to low
+  bool get sortByPriceHigh => _sortByPriceHigh;
+
+  String get selectedCategory => _selectedCategory;
+
+  String get selectedCondition => _selectedCondition;
+
+  double get maxPrice => _maxPrice;
+
+  String get searchQuery => _searchQuery;
 
   // Filtered products based on current filters
   List<ProductModel> get filteredProducts {
@@ -53,7 +72,8 @@ class ProductProvider extends ChangeNotifier {
         return false;
       }
 
-      if (_selectedCondition != 'All' && product.condition != _selectedCondition) {
+      if (_selectedCondition != 'All' &&
+          product.condition != _selectedCondition) {
         return false;
       }
 
@@ -64,12 +84,40 @@ class ProductProvider extends ChangeNotifier {
       return product.isAvailable && product.isActive && !product.isHidden;
     }).toList()
       ..sort((a, b) {
+        //  Sorting logic with three options
         if (_sortByNewest) {
-          return b.createdAt.compareTo(a.createdAt);
+          return b.createdAt.compareTo(a.createdAt); // Newest first
+        } else if (_sortByPriceHigh) {
+          return b.price.compareTo(a.price); // HIGH TO LOW
         } else {
-          return a.price.compareTo(b.price);
+          return a.price.compareTo(b.price); // Low to high
         }
       });
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  // Safe notify listeners
+  void _safeNotifyListeners() {
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+  }
+
+  // Helper methods
+  void _setLoading(bool value) {
+    if (!_isDisposed) {
+      _isLoading = value;
+      _safeNotifyListeners();
+    }
+  }
+
+  void _clearError() {
+    _errorMessage = null;
   }
 
   // Load all products
@@ -102,28 +150,32 @@ class ProductProvider extends ChangeNotifier {
 
   // Load user's products (for seller)
   Future<void> loadUserProducts(String sellerId) async {
-    _setLoading(true);
-    _clearError();
+    debugPrint('📦 Loading products for seller: $sellerId');
 
-    try {
-      debugPrint('📦 Loading products for seller: $sellerId');
-      final snapshot = await _firestore
-          .collection('products')
-          .where('sellerId', isEqualTo: sellerId)
-          .orderBy('createdAt', descending: true)
-          .get();
+    // Use Future.microtask to avoid setState during build
+    await Future.microtask(() async {
+      _setLoading(true);
+      _clearError();
 
-      _userProducts = snapshot.docs.map((doc) {
-        return ProductModel.fromMap(doc.id, doc.data());
-      }).toList();
+      try {
+        final snapshot = await _firestore
+            .collection('products')
+            .where('sellerId', isEqualTo: sellerId)
+            .orderBy('createdAt', descending: true)
+            .get();
 
-      debugPrint('✅ Loaded ${_userProducts.length} products for user');
-    } catch (e) {
-      debugPrint('❌ Error loading user products: $e');
-      _errorMessage = 'Failed to load your products';
-    } finally {
-      _setLoading(false);
-    }
+        _userProducts = snapshot.docs.map((doc) {
+          return ProductModel.fromMap(doc.id, doc.data());
+        }).toList();
+
+        debugPrint('✅ Loaded ${_userProducts.length} products for user');
+      } catch (e) {
+        debugPrint('❌ Error loading user products: $e');
+        _errorMessage = 'Failed to load your products';
+      } finally {
+        _setLoading(false);
+      }
+    });
   }
 
   // Platform-specific file reading
@@ -193,7 +245,11 @@ class ProductProvider extends ChangeNotifier {
           debugPrint('\n--- Processing image $i ---');
 
           final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-          final ref = _storage.ref().child('product_images').child(sellerId).child(fileName);
+          final ref = _storage
+              .ref()
+              .child('product_images')
+              .child(sellerId)
+              .child(fileName);
           debugPrint('📁 Storage path: ${ref.fullPath}');
 
           final Uint8List bytes = await _readFileAsBytes(imageFile);
@@ -219,7 +275,6 @@ class ProductProvider extends ChangeNotifier {
           final url = await ref.getDownloadURL();
           debugPrint('✅ Image $i uploaded successfully');
           imageUrls.add(url);
-
         } catch (e, stack) {
           debugPrint('❌ Error uploading image $i: $e');
           debugPrint('📚 Stack trace: $stack');
@@ -266,7 +321,6 @@ class ProductProvider extends ChangeNotifier {
 
       _setLoading(false);
       return true;
-
     } catch (e) {
       debugPrint('❌ Error adding product: $e');
       _errorMessage = 'Failed to add product: ${e.toString()}';
@@ -311,7 +365,8 @@ class ProductProvider extends ChangeNotifier {
       debugPrint('📦 Update data: $updates');
 
       // First, verify the product exists
-      final productDoc = await _firestore.collection('products').doc(productId).get();
+      final productDoc =
+          await _firestore.collection('products').doc(productId).get();
       if (!productDoc.exists) {
         debugPrint('❌ Product not found: $productId');
         _errorMessage = 'Product not found';
@@ -319,13 +374,15 @@ class ProductProvider extends ChangeNotifier {
         return false;
       }
 
-      // Check if user is the owner 
+      // Check if user is the owner
       final productData = productDoc.data();
 
       // Get current user ID safely
       String? currentUserId;
       try {
-        final authProvider = Provider.of<AuthProvider>(navigatorKey.currentContext!, listen: false);
+        final authProvider = Provider.of<AuthProvider>(
+            navigatorKey.currentContext!,
+            listen: false);
         currentUserId = authProvider.user?.uid;
       } catch (e) {
         debugPrint('⚠️ Could not get auth context for ownership check');
@@ -345,10 +402,9 @@ class ProductProvider extends ChangeNotifier {
       // Update local lists
       await _refreshLocalProduct(productId);
 
-      notifyListeners();
+      _safeNotifyListeners();
       _setLoading(false);
       return true;
-
     } catch (e) {
       debugPrint('❌ Error updating product: $e');
       debugPrint('📚 Stack trace: ${StackTrace.current}');
@@ -361,9 +417,11 @@ class ProductProvider extends ChangeNotifier {
   // Helper method to refresh a single product
   Future<void> _refreshLocalProduct(String productId) async {
     try {
-      final updatedDoc = await _firestore.collection('products').doc(productId).get();
+      final updatedDoc =
+          await _firestore.collection('products').doc(productId).get();
       if (updatedDoc.exists) {
-        final updatedProduct = ProductModel.fromMap(productId, updatedDoc.data()!);
+        final updatedProduct =
+            ProductModel.fromMap(productId, updatedDoc.data()!);
 
         final productIndex = _products.indexWhere((p) => p.id == productId);
         if (productIndex != -1) {
@@ -371,7 +429,8 @@ class ProductProvider extends ChangeNotifier {
           debugPrint('✅ Updated product in _products list');
         }
 
-        final userProductIndex = _userProducts.indexWhere((p) => p.id == productId);
+        final userProductIndex =
+            _userProducts.indexWhere((p) => p.id == productId);
         if (userProductIndex != -1) {
           _userProducts[userProductIndex] = updatedProduct;
           debugPrint('✅ Updated product in _userProducts list');
@@ -392,7 +451,8 @@ class ProductProvider extends ChangeNotifier {
   }
 
   // Permanently delete product
-  Future<bool> permanentlyDeleteProduct(String productId, List<String> imageUrls) async {
+  Future<bool> permanentlyDeleteProduct(
+      String productId, List<String> imageUrls) async {
     _setLoading(true);
     _clearError();
 
@@ -424,10 +484,9 @@ class ProductProvider extends ChangeNotifier {
       _products.removeWhere((p) => p.id == productId);
       _userProducts.removeWhere((p) => p.id == productId);
 
-      notifyListeners();
+      _safeNotifyListeners();
       _setLoading(false);
       return true;
-
     } catch (e) {
       debugPrint('❌ Error permanently deleting product: $e');
       _errorMessage = 'Failed to delete product: ${e.toString()}';
@@ -450,37 +509,77 @@ class ProductProvider extends ChangeNotifier {
           'viewCount': _products[productIndex].viewCount + 1,
         });
         _products[productIndex] = updatedProduct;
-        notifyListeners();
+        _safeNotifyListeners();
       }
     } catch (e) {
       debugPrint('❌ Error incrementing view count: $e');
     }
   }
 
+  // Mark product as sold
+  Future<bool> markProductAsSold(String productId) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      debugPrint('🏷️ Marking product as sold: $productId');
+
+      await _firestore.collection('products').doc(productId).update({
+        'isAvailable': false,
+        'soldAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update local lists
+      await _refreshLocalProduct(productId);
+
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      debugPrint('❌ Error marking product as sold: $e');
+      _errorMessage = 'Failed to mark product as sold';
+      _setLoading(false);
+      return false;
+    }
+  }
+
   // Search and filter methods
   void setSearchQuery(String query) {
     _searchQuery = query;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   void setCategory(String category) {
     _selectedCategory = category;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   void setCondition(String condition) {
     _selectedCondition = condition;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   void setMaxPrice(double price) {
     _maxPrice = price;
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   void setSortByNewest(bool newest) {
     _sortByNewest = newest;
-    notifyListeners();
+    //  Turn off price high when newest is selected
+    if (newest) {
+      _sortByPriceHigh = false;
+    }
+    _safeNotifyListeners();
+  }
+
+  //  Set sort by price high to low
+  void setSortByPriceHigh(bool high) {
+    _sortByPriceHigh = high;
+    // Turn off newest when price high is selected
+    if (high) {
+      _sortByNewest = false;
+    }
+    _safeNotifyListeners();
   }
 
   void clearFilters() {
@@ -489,7 +588,9 @@ class ProductProvider extends ChangeNotifier {
     _selectedCondition = 'All';
     _maxPrice = 100000;
     _sortByNewest = true;
-    notifyListeners();
+    //  Reset price high to false
+    _sortByPriceHigh = false;
+    _safeNotifyListeners();
   }
 
   // Get product by ID
@@ -503,15 +604,5 @@ class ProductProvider extends ChangeNotifier {
         return null;
       }
     }
-  }
-
-  // Helper methods
-  void _setLoading(bool value) {
-    _isLoading = value;
-    notifyListeners();
-  }
-
-  void _clearError() {
-    _errorMessage = null;
   }
 }
