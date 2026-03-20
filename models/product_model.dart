@@ -4,12 +4,12 @@ class ProductModel {
   final String id;
   final String sellerId;
   final String sellerName;
-  final String sellerPhone; // Added seller phone
+  final String sellerPhone;
   final String title;
   final String description;
   final double price;
   final String category;
-  final String condition; // Like New, Good, Fair, etc.
+  final String condition;
   final List<String> imageUrls;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -32,7 +32,7 @@ class ProductModel {
     required this.id,
     required this.sellerId,
     required this.sellerName,
-    required this.sellerPhone, // Added required
+    required this.sellerPhone,
     required this.title,
     required this.description,
     required this.price,
@@ -56,7 +56,7 @@ class ProductModel {
     return {
       'sellerId': sellerId,
       'sellerName': sellerName,
-      'sellerPhone': sellerPhone, // Added seller phone
+      'sellerPhone': sellerPhone,
       'title': title,
       'description': description,
       'price': price,
@@ -82,7 +82,7 @@ class ProductModel {
       id: id,
       sellerId: map['sellerId'] ?? '',
       sellerName: map['sellerName'] ?? 'Unknown Seller',
-      sellerPhone: map['sellerPhone'] ?? 'Not provided', // Added with default
+      sellerPhone: map['sellerPhone'] ?? 'Not provided',
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       price: (map['price'] ?? 0).toDouble(),
