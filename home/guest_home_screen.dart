@@ -1,0 +1,592 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../screens/addproduct_screen.dart';
+import '../screens/shop_screen.dart';
+import '../screens/adddonation_screen.dart';
+import '../screens/cart_screen.dart';
+import '../screens/about_screen.dart';
+import '../screens/chat_screen.dart';
+import '../screens/search_screen.dart';
+import '../screens/wishlist_screen.dart';
+import '../screens/profile_screen.dart';
+import '../screens/item_detail_screen.dart';
+import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
+import '../theme_provider.dart';
+import '../services/navigation_helper.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => HomeScreenState();
+}
+
+class HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  int _selectedIndex = 0;
+  late PageController _pageController;
+  int _currentSlide = 0;
+
+  // Sample data
+  final List<Map<String, dynamic>> _slides = [
+    {
+      'title': '🌱 Sustainable Shopping',
+      'subtitle': 'Give items a second life',
+      'image': '🌍',
+      'color': Colors.green,
+      'buttonText': 'Shop Now',
+      'destination': const ShopScreen(),
+      'type': 'shop',
+    },
+    {
+      'title': '🤝 Donate with Heart',
+      'subtitle': 'Help those in need today',
+      'image': '💝',
+      'color': Colors.orange,
+      'buttonText': 'Donate Now',
+      'destination': const AddDonationScreen(),
+      'type': 'donate',
+    },
+    {
+      'title': '💰 Earn While Saving',
+      'subtitle': 'Sell your pre-loved items',
+      'image': '💰',
+      'color': Colors.blue,
+      'buttonText': 'Start Selling',
+      'destination': const AddProductScreen(),
+      'type': 'sell',
+    },
+  ];
+
+  final List<Map<String, dynamic>> impactStats = [
+    {
+      'value': '2,345+',
+      'label': 'Items Saved',
+      'icon': Icons.recycling,
+      'color': Colors.green
+    },
+    {
+      'value': '1,200+',
+      'label': 'Happy Donors',
+      'icon': Icons.volunteer_activism,
+      'color': Colors.blue
+    },
+    {
+      'value': '₹5L+',
+      'label': 'Value Donated',
+      'icon': Icons.currency_rupee,
+      'color': Colors.orange
+    },
+    {
+      'value': '850+',
+      'label': 'Families Helped',
+      'icon': Icons.family_restroom,
+      'color': Colors.purple
+    },
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+
+    // Auto slide for carousel
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoSlide();
+    });
+  }
+
+  void _startAutoSlide() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        _autoSlide();
+      }
+    });
+  }
+
+  void _autoSlide() async {
+    while (mounted) {
+      await Future.delayed(const Duration(seconds: 3));
+      if (_pageController.hasClients) {
+        int nextPage = _currentSlide + 1;
+        if (nextPage >= _slides.length) {
+          nextPage = 0;
+        }
+        _pageController.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Safely consume providers with error handling
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    // Use Consumer for CartProvider to avoid rebuild issues
+    return Scaffold(
+      backgroundColor:
+          themeProvider.isDarkMode ? Colors.grey[900] : Colors.grey[50],
+      appBar: AppBar(
+        title: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AboutScreen()),
+            );
+          },
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withAlpha(30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.eco, color: Colors.green, size: 24),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'KindCart',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          // Theme Toggle
+          IconButton(
+            icon: Icon(
+              themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              color: themeProvider.isDarkMode ? Colors.amber : Colors.grey[700],
+            ),
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
+
+          // Search
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              NavigationHelper.goToSearchScreen(context);
+            },
+          ),
+
+          // Wishlist Icon
+          IconButton(
+            icon: const Icon(Icons.favorite_border),
+            onPressed: () {
+              NavigationHelper.goToWishlistScreen(context);
+            },
+          ),
+
+          // Cart with Badge
+          Consumer<CartProvider>(
+            builder: (context, cartProvider, child) {
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    onPressed: () {
+                      NavigationHelper.goToCartScreen(context);
+                    },
+                  ),
+                  if (cartProvider.items.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          '${cartProvider.items.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+        elevation: 2,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Slideshow
+            SizedBox(
+              height: 220,
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentSlide = index;
+                      });
+                    },
+                    itemCount: _slides.length,
+                    itemBuilder: (context, index) {
+                      final slide = _slides[index];
+                      return Container(
+                        margin: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              slide['color'] as Color,
+                              (slide['color'] as Color).withAlpha(180),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (slide['color'] as Color).withAlpha(77),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              right: -20,
+                              bottom: -20,
+                              child: Text(
+                                slide['image'] as String,
+                                style: const TextStyle(
+                                    fontSize: 120, color: Colors.white12),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      slide['title'] as String,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      slide['subtitle'] as String,
+                                      style: TextStyle(
+                                        color: Colors.white.withAlpha(230),
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        //  Use type-based navigation
+                                        final type = slide['type'] as String;
+                                        switch (type) {
+                                          case 'shop':
+                                            NavigationHelper.goToShopScreen(
+                                                context);
+                                            break;
+                                          case 'donate':
+                                            NavigationHelper.goToDonateScreen(
+                                                context);
+                                            break;
+                                          case 'sell':
+                                            NavigationHelper.goToSellScreen(
+                                                context);
+                                            break;
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor:
+                                            slide['color'] as Color,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 10),
+                                      ),
+                                      child:
+                                          Text(slide['buttonText'] as String),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  Positioned(
+                    bottom: 20,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        _slides.length,
+                        (index) => Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _currentSlide == index
+                                ? Colors.green
+                                : Colors.grey.withAlpha(128),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Impact Stats
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '🌍 Our Impact',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const AboutScreen()),
+                            );
+                          },
+                          child: const Text('Learn More'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: impactStats.map((stat) {
+                        return Container(
+                          width: 140,
+                          margin: const EdgeInsets.only(right: 15),
+                          padding: const EdgeInsets.all(15),
+                          decoration: BoxDecoration(
+                            color: (stat['color'] as Color).withAlpha(25),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                                color: (stat['color'] as Color).withAlpha(77)),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(stat['icon'] as IconData,
+                                  color: stat['color'] as Color, size: 30),
+                              const SizedBox(height: 8),
+                              Text(
+                                stat['value'] as String,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: stat['color'] as Color,
+                                ),
+                              ),
+                              Text(
+                                stat['label'] as String,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Call to Action
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.all(25),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Colors.green, Colors.teal],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Ready to Make a Difference?',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Join our community of changemakers today',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            NavigationHelper.goToSellScreen(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          child: const Text('Start Selling'),
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            NavigationHelper.goToDonateScreen(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          child: const Text('Donate Now'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+
+          switch (index) {
+            case 0:
+              // Already on home
+              break;
+            case 1:
+              NavigationHelper.goToSearchScreen(context);
+              break;
+            case 2:
+              NavigationHelper.showAddOptions(context);
+              break;
+            case 3:
+              NavigationHelper.goToProfileScreen(context);
+              break;
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Explore',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle_outline),
+            label: 'Add',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ChatScreen()),
+          );
+        },
+        backgroundColor: Colors.purple,
+        icon: const Icon(Icons.chat, color: Colors.white),
+        label: const Text('AI Help', style: TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+}
