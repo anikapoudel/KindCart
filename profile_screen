@@ -8,6 +8,7 @@ import '../admin/approval_screen.dart';
 import 'addproduct_screen.dart';
 import 'adddonation_screen.dart';
 import 'wishlist_screen.dart';
+import 'my_listings_screen.dart'; // You'll need to create this
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,26 +18,19 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Map<String, dynamic>? _userData;
-
   @override
   void initState() {
     super.initState();
+    // Load role-specific data when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadUserData();
-      _loadRoleSpecificData();
+      if (mounted) {
+        _loadRoleSpecificData();
+      }
     });
   }
 
-  Future<void> _loadUserData() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.isAuthenticated) {
-      final data = await authProvider.getUserData();
-      if (mounted) setState(() => _userData = data);
-    }
-  }
-
   Future<void> _loadRoleSpecificData() async {
+    // Get providers without listening for changes
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
 
@@ -61,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () => themeProvider.toggleTheme(),
           ),
           // Role-specific action buttons
-          if (authProvider.userRole == 'Seller')
+          if (authProvider.userRole == 'Seller' && authProvider.isSellerApproved)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
@@ -70,6 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   MaterialPageRoute(builder: (context) => const AddProductScreen()),
                 );
               },
+              tooltip: 'Add Product',
             ),
           if (authProvider.userRole == 'Donor')
             IconButton(
@@ -77,25 +72,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () {
                 Navigator.pushNamed(context, '/add-donation');
               },
+              tooltip: 'Add Donation',
             ),
         ],
       ),
       body: authProvider.isAuthenticated
           ? RefreshIndicator(
         onRefresh: () async {
-          await _loadUserData();
+          // Refresh both auth and role-specific data
+          await authProvider.refreshUser();
           await _loadRoleSpecificData();
         },
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              //  SECTION 1: PROFILE HEADER (Common for all)
+              // SECTION 1: PROFILE HEADER (Common for all)
               _buildProfileHeader(authProvider),
 
               const SizedBox(height: 24),
 
-              //  SECTION 2: ROLE-SPECIFIC CONTENT
+              // SECTION 2: ROLE-SPECIFIC CONTENT
               if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
               if (authProvider.userRole == 'Seller') _buildSellerContent(authProvider),
               if (authProvider.userRole == 'Donor') _buildDonorContent(),
@@ -103,12 +100,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 24),
 
-              //  SECTION 3: COMMON SETTINGS (All users)
+              // SECTION 3: COMMON SETTINGS (All users)
               _buildCommonSettings(),
 
               const SizedBox(height: 16),
 
-              //  SECTION 4: LOGOUT
+              // SECTION 4: LOGOUT
               _buildLogoutButton(authProvider),
 
               const SizedBox(height: 20),
@@ -120,35 +117,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //  HELPER METHODS
-
+  // HELPER METHODS
   String _getTitle(String? role) {
     switch (role) {
-      case 'Buyer': return 'My Account';
-      case 'Seller': return 'Seller Dashboard';
-      case 'Donor': return 'Donor Impact';
-      case 'Admin': return 'Admin Panel';
-      default: return 'Profile';
+      case 'Buyer':
+        return 'My Account';
+      case 'Seller':
+        return 'Seller Dashboard';
+      case 'Donor':
+        return 'Donor Impact';
+      case 'Admin':
+        return 'Admin Panel';
+      default:
+        return 'Profile';
     }
   }
 
   Color _getRoleColor(String? role) {
     switch (role) {
-      case 'Buyer': return Colors.blue;
-      case 'Seller': return Colors.orange;
-      case 'Donor': return Colors.purple;
-      case 'Admin': return Colors.deepPurple;
-      default: return Colors.green;
+      case 'Buyer':
+        return Colors.blue;
+      case 'Seller':
+        return Colors.orange;
+      case 'Donor':
+        return Colors.purple;
+      case 'Admin':
+        return Colors.deepPurple;
+      default:
+        return Colors.green;
     }
   }
 
-  //  SECTION 1: PROFILE HEADER
-
+  // SECTION 1: PROFILE HEADER
   Widget _buildProfileHeader(AuthProvider auth) {
     final user = auth.user;
-    final userName = _userData?['name'] ?? user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
+    // ✅ Use the userData getter from AuthProvider
+    final userData = auth.userData;
+
+    final userName = userData?['name'] ?? user?.displayName ?? user?.email?.split('@')[0] ?? 'User';
     final userEmail = user?.email ?? 'No email';
-    final userPhone = _userData?['phone'] ?? '';
+    final userPhone = userData?['phone'] ?? '';
     final isVerified = auth.isEmailVerified;
 
     return Card(
@@ -247,8 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //  SECTION 2: ROLE-SPECIFIC CONTENT
-
+  // SECTION 2: ROLE-SPECIFIC CONTENT
   // ----- BUYER CONTENT -----
   Widget _buildBuyerContent() {
     return Column(
@@ -404,7 +411,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Text('My Listings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // FIXED: Navigate to all listings
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MyListingsScreen(),
+                      ),
+                    );
+                  },
                   child: const Text('View All'),
                 ),
               ],
@@ -440,66 +455,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   itemCount: productProvider.userProducts.length > 5 ? 5 : productProvider.userProducts.length,
                   itemBuilder: (context, index) {
                     final product = productProvider.userProducts[index];
-                    return Container(
-                      width: 140,
-                      margin: const EdgeInsets.only(right: 12),
-                      child: Card(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[200],
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                                  image: product.imageUrls.isNotEmpty
-                                      ? DecorationImage(
-                                    image: NetworkImage(product.imageUrls.first),
-                                    fit: BoxFit.cover,
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/item-detail',
+                          arguments: product,
+                        );
+                      },
+                      child: Container(
+                        width: 140,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Card(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                    image: product.imageUrls.isNotEmpty
+                                        ? DecorationImage(
+                                      image: NetworkImage(product.imageUrls.first),
+                                      fit: BoxFit.cover,
+                                    )
+                                        : null,
+                                  ),
+                                  child: product.imageUrls.isEmpty
+                                      ? const Center(
+                                    child: Icon(Icons.image_not_supported, color: Colors.grey),
                                   )
                                       : null,
                                 ),
                               ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    product.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    '₹${product.price.toStringAsFixed(0)}',
-                                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                                  ),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: product.isAvailable ? Colors.green : Colors.red,
+                              Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      '₹${product.price.toStringAsFixed(0)}',
+                                      style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: product.isAvailable ? Colors.green : Colors.red,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        product.isAvailable ? 'Available' : 'Sold',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: product.isAvailable ? Colors.green : Colors.red,
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          product.isAvailable ? 'Available' : 'Sold',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: product.isAvailable ? Colors.green : Colors.red,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -536,25 +565,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ----- DONOR CONTENT -----
+// ----- DONOR CONTENT (FIXED - NO BLANK SCREEN) -----
   Widget _buildDonorContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Impact stats
+        const Text(
+          'Donor Tools',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+
+        // Donor Quick Actions (Working)
         Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Your Impact', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Quick Actions',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 16),
+
+                // Quick action buttons
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildImpactItem('12', 'Items Donated', Icons.volunteer_activism, Colors.purple),
-                    _buildImpactItem('250', 'Points', Icons.stars, Colors.amber),
-                    _buildImpactItem('5', 'Helped', Icons.people, Colors.green),
+                    Expanded(
+                      child: _buildDonorActionButton(
+                        icon: Icons.add_circle,
+                        label: 'New Donation',
+                        color: Colors.purple,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const AddDonationScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDonorActionButton(
+                        icon: Icons.home,
+                        label: 'Donor Home',
+                        color: Colors.green,
+                        onTap: () {
+                          Navigator.pop(context); // Go back to donor home
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -564,33 +627,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         const SizedBox(height: 24),
 
-        // Donation history
-        const Text('Recent Donations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        // Donor Settings
+        const Text(
+          'Preferences',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
+
         Card(
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            separatorBuilder: (_, __) => const Divider(),
-            itemBuilder: (_, index) {
-              return ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.volunteer_activism, color: Colors.purple),
-                ),
-                title: const Text('Winter Clothes'),
-                subtitle: const Text('Donated 2 days ago'),
-                trailing: const Text('Completed', style: TextStyle(color: Colors.green)),
-              );
-            },
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            children: [
+              _buildMenuItem(
+                icon: Icons.notifications,
+                title: 'Notifications',
+                subtitle: 'Manage your donation alerts',
+                onTap: () => _showComingSoon(),
+              ),
+              const Divider(height: 1, indent: 16, endIndent: 16),
+              _buildMenuItem(
+                icon: Icons.visibility,
+                title: 'Anonymous Donations',
+                subtitle: 'Default anonymity setting',
+                onTap: () => _showComingSoon(),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+// Helper widget for donor action buttons
+  Widget _buildDonorActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withAlpha(20),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withAlpha(50)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -643,8 +743,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //  SECTION 3: COMMON SETTINGS
-
+  // SECTION 3: COMMON SETTINGS
   Widget _buildCommonSettings() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,8 +784,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //  HELPER WIDGETS
-
+  // HELPER WIDGETS
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
@@ -815,11 +913,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  //  DIALOGS
-
+  // DIALOGS - FIXED with proper mounted checks
   void _showEditProfileDialog(AuthProvider auth) {
-    final nameController = TextEditingController(text: _userData?['name'] ?? '');
-    final phoneController = TextEditingController(text: _userData?['phone'] ?? '');
+    // Get fresh data
+    final userData = auth.userData;
+
+    final nameController = TextEditingController(text: userData?['name'] ?? '');
+    final phoneController = TextEditingController(text: userData?['phone'] ?? '');
     String? selectedRole = auth.userRole;
     bool isLoading = false;
 
@@ -864,7 +964,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         DropdownMenuItem(value: 'Seller', child: Text('Seller')),
                         DropdownMenuItem(value: 'Donor', child: Text('Donor')),
                       ],
-                      onChanged: isLoading ? null : (value) {
+                      onChanged: isLoading
+                          ? null
+                          : (value) {
                         setDialogState(() => selectedRole = value);
                       },
                     ),
@@ -873,11 +975,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: isLoading ? null : () => Navigator.pop(dialogContext),
+                  onPressed: isLoading ? null : () {
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                  },
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  onPressed: isLoading ? null : () async {
+                  onPressed: isLoading
+                      ? null
+                      : () async {
                     setDialogState(() => isLoading = true);
 
                     final success = await auth.updateUserProfile(
@@ -886,19 +994,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       role: selectedRole,
                     );
 
-                    if (!dialogContext.mounted) return;
-                    Navigator.pop(dialogContext);
+                    // Check if dialog is still mounted before popping
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
 
+                    // Check if parent widget is still mounted before showing snackbar
                     if (success && mounted) {
-                      await _loadUserData();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Profile updated'), backgroundColor: Colors.green),
+                        const SnackBar(
+                          content: Text('Profile updated'),
+                          backgroundColor: Colors.green,
+                        ),
                       );
                     }
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   child: isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                       : const Text('Save'),
                 ),
               ],
@@ -917,16 +1034,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () {
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(dialogContext);
+              // Close dialog first
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+              }
+
+              // Then sign out
               await auth.signOut();
+
+              // Show snackbar if screen is still mounted
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Logged out'), backgroundColor: Colors.green),
+                  const SnackBar(
+                    content: Text('Logged out'),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
             },
@@ -940,7 +1071,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showComingSoon() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon!'), duration: Duration(seconds: 1)),
+      const SnackBar(
+        content: Text('Coming soon!'),
+        duration: Duration(seconds: 1),
+      ),
     );
   }
 }
