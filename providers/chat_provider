@@ -1,0 +1,348 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/chat_model.dart';
+
+class ChatProvider extends ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  List<ChatModel> _buyerChats = [];
+  List<ChatModel> _sellerChats = [];
+  bool _isLoading = false;
+
+  List<ChatModel> get buyerChats => _buyerChats;
+
+  List<ChatModel> get sellerChats => _sellerChats;
+
+  bool get isLoading => _isLoading;
+
+  // GENERATE CHAT ID
+
+  String generateChatId(String userId1, String userId2, String productId) {
+    final ids = [userId1, userId2]..sort();
+    return '${ids[0]}_${ids[1]}_$productId';
+  }
+
+  // LOAD USER CHATS
+  Future<void> loadUserChats(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final buyerSnapshot = await _firestore
+          .collection('chats')
+          .where('buyerId', isEqualTo: userId)
+          .orderBy('lastMessageTime', descending: true)
+          .get();
+
+      _buyerChats = buyerSnapshot.docs
+          .map((doc) => ChatModel.fromMap(doc.id, doc.data()))
+          .toList();
+
+      final sellerSnapshot = await _firestore
+          .collection('chats')
+          .where('sellerId', isEqualTo: userId)
+          .orderBy('lastMessageTime', descending: true)
+          .get();
+
+      _sellerChats = sellerSnapshot.docs
+          .map((doc) => ChatModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ Error loading chats: $e');
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // STREAM USER CHATS
+  Stream<List<ChatModel>> getUserChatsStream(String userId) {
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: userId)
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ChatModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
+  // GET EXISTING CHAT
+  Future<String?> getExistingChatId({
+    required String buyerId,
+    required String sellerId,
+    required String productId,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('chats')
+          .where('buyerId', isEqualTo: buyerId)
+          .where('sellerId', isEqualTo: sellerId)
+          .where('productId', isEqualTo: productId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.id;
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking existing chat: $e');
+    }
+    return null;
+  }
+
+  // CHECK IF CHAT EXISTS
+  Future<bool> chatExists(String chatId) async {
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      return chatDoc.exists;
+    } catch (e) {
+      debugPrint('❌ Error checking chat existence: $e');
+      return false;
+    }
+  }
+
+  // CREATE OR GET CHAT
+  Future<String> getOrCreateChat({
+    String? chatId, // Optional: if you want to provide a specific ID
+    required String buyerId,
+    required String buyerName,
+    required String sellerId,
+    required String sellerName,
+    required String productId,
+    required String productTitle,
+    String? productImage,
+  }) async {
+    try {
+      // If chatId is provided, use it directly
+      if (chatId != null) {
+        final exists = await chatExists(chatId);
+        if (exists) {
+          debugPrint('✅ Using existing chat with provided ID: $chatId');
+          return chatId;
+        }
+      }
+
+      // Otherwise check by combination
+      final existingId = await getExistingChatId(
+        buyerId: buyerId,
+        sellerId: sellerId,
+        productId: productId,
+      );
+
+      if (existingId != null) {
+        debugPrint('✅ Found existing chat: $existingId');
+        return existingId;
+      }
+
+      // Create new chat
+      final newChatId = chatId ?? generateChatId(buyerId, sellerId, productId);
+      final chatRef = _firestore.collection('chats').doc(newChatId);
+
+      // Create participants array for easier querying
+      final participants = [buyerId, sellerId];
+
+      await chatRef.set({
+        'id': newChatId,
+        'buyerId': buyerId,
+        'buyerName': buyerName,
+        'sellerId': sellerId,
+        'sellerName': sellerName,
+        'participants': participants,
+        'productId': productId,
+        'productTitle': productTitle,
+        'productImage': productImage,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastMessage': 'Chat started',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'lastMessageSenderId': buyerId,
+        'lastMessageIsFromBuyer': true,
+        'unreadCountBuyer': 0,
+        'unreadCountSeller': 1,
+        // Seller has 1 unread (the "Chat started" message)
+      });
+
+      debugPrint('🆕 Created new chat: $newChatId');
+      return newChatId;
+    } catch (e) {
+      debugPrint('❌ Error in getOrCreateChat: $e');
+      rethrow;
+    }
+  }
+
+  // SEND MESSAGE
+  Future<void> sendMessage({
+    required String chatId,
+    required String senderId,
+    required String senderName,
+    required String content,
+  }) async {
+    try {
+      debugPrint('💬 Sending message to chat: $chatId');
+
+      // Check if chat exists
+      final chatRef = _firestore.collection('chats').doc(chatId);
+      final chatDoc = await chatRef.get();
+
+      if (!chatDoc.exists) {
+        debugPrint('❌ Chat not found: $chatId');
+        throw Exception('Chat not found. Please restart the conversation.');
+      }
+
+      final chatData = chatDoc.data()!;
+      final isBuyer = chatData['buyerId'] == senderId;
+      final now = Timestamp.now();
+
+      // Add message to subcollection
+      final messageRef = chatRef.collection('messages').doc();
+      await messageRef.set({
+        'id': messageRef.id,
+        'senderId': senderId,
+        'senderName': senderName,
+        'content': content,
+        'timestamp': now,
+        'isRead': false,
+        'type': 0, // 0 = text, 1 = image, 2 = system
+      });
+
+      // Prepare update data with proper field handling
+      final Map<String, dynamic> updates = {
+        'lastMessage': content,
+        'lastMessageTime': now,
+        'lastMessageSenderId': senderId,
+        'lastMessageIsFromBuyer': isBuyer,
+      };
+
+      // Safely update unread counts
+      if (isBuyer) {
+        // Current user is buyer, increment seller's unread
+        final currentUnread = chatData['unreadCountSeller'] ?? 0;
+        updates['unreadCountSeller'] = currentUnread + 1;
+      } else {
+        // Current user is seller, increment buyer's unread
+        final currentUnread = chatData['unreadCountBuyer'] ?? 0;
+        updates['unreadCountBuyer'] = currentUnread + 1;
+      }
+
+      await chatRef.update(updates);
+      debugPrint('✅ Message sent successfully to chat: $chatId');
+    } catch (e) {
+      debugPrint('❌ Error sending message: $e');
+      rethrow;
+    }
+  }
+
+  // GET MESSAGES STREAM
+  Stream<List<MessageModel>> getMessagesStream(String chatId) {
+    debugPrint('📡 Setting up messages stream for chat: $chatId');
+
+    return _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      debugPrint('   📨 Received ${snapshot.docs.length} messages from stream');
+      return snapshot.docs
+          .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  // MARK MESSAGES AS READ
+  Future<void> markMessagesAsRead(String chatId, String userId) async {
+    try {
+      final chatDoc = await _firestore.collection('chats').doc(chatId).get();
+      if (!chatDoc.exists) return;
+
+      final chatData = chatDoc.data()!;
+      final isBuyer = chatData['buyerId'] == userId;
+
+      // Reset unread count for this user
+      final updateData =
+          isBuyer ? {'unreadCountBuyer': 0} : {'unreadCountSeller': 0};
+
+      await _firestore.collection('chats').doc(chatId).update(updateData);
+
+      // Mark all messages from other user as read
+      final snapshot = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        if (doc['senderId'] != userId) {
+          batch.update(doc.reference, {'isRead': true});
+        }
+      }
+      await batch.commit();
+
+      debugPrint('✅ Marked messages as read for user: $userId');
+    } catch (e) {
+      debugPrint('❌ Error marking messages as read: $e');
+    }
+  }
+
+  // SEND SYSTEM MESSAGE
+  Future<void> _sendSystemMessage({
+    required String chatId,
+    required String content,
+  }) async {
+    try {
+      final messageRef = _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .doc();
+
+      await messageRef.set({
+        'id': messageRef.id,
+        'senderId': 'system',
+        'senderName': 'System',
+        'content': content,
+        'timestamp': Timestamp.now(),
+        'isRead': false,
+        'type': 2, // 2 = system message
+      });
+
+      // Update last message in chat
+      await _firestore.collection('chats').doc(chatId).update({
+        'lastMessage': content,
+        'lastMessageTime': Timestamp.now(),
+        'lastMessageSenderId': 'system',
+        'lastMessageIsFromBuyer': false,
+      });
+    } catch (e) {
+      debugPrint('❌ Error sending system message: $e');
+    }
+  }
+
+  // LINK ORDER TO CHAT
+  Future<void> linkOrderToChat(String chatId, String orderId) async {
+    try {
+      await _firestore.collection('chats').doc(chatId).update({
+        'orderId': orderId,
+      });
+
+      await _sendSystemMessage(
+        chatId: chatId,
+        content: 'Order #$orderId has been placed',
+      );
+
+      debugPrint('✅ Linked order $orderId to chat $chatId');
+    } catch (e) {
+      debugPrint('❌ Error linking order to chat: $e');
+    }
+  }
+
+  // CLEAR MESSAGES
+  void clearMessages() {
+    _buyerChats.clear();
+    _sellerChats.clear();
+    notifyListeners();
+  }
+}
