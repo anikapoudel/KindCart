@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/auth_provider.dart' as app_auth;
 import '../providers/product_provider.dart';
+import '../providers/chat_provider.dart';
 import 'editproduct_screen.dart';
+import 'user_chat_screen.dart';
+import 'cart_screen.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   final ProductModel item;
@@ -21,32 +26,39 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
   bool _isInWishlist = false;
   bool _isLoading = false;
   int _selectedQuantity = 1;
-
-  // Add a local copy of the item that can be updated
+  late PageController _pageController;
   late ProductModel _currentItem;
 
   @override
   void initState() {
     super.initState();
     _currentItem = widget.item;
+    _pageController = PageController(initialPage: 0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkWishlistStatus();
-      _incrementViewCount();
     });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  String generateChatId(String buyerId, String sellerId, String productId) {
+    final ids = [buyerId, sellerId]..sort();
+    return '${ids[0]}_${ids[1]}_$productId';
   }
 
   Future<void> _checkWishlistStatus() async {
     if (!mounted) return;
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
     if (!authProvider.isAuthenticated) return;
-
-    final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
+    final wishlistProvider =
+        Provider.of<WishlistProvider>(context, listen: false);
     final isInList = await wishlistProvider.isInWishlist(
-        authProvider.user!.uid,
-        _currentItem.id
-    );
-
+        authProvider.user!.uid, _currentItem.id);
     if (mounted) {
       setState(() {
         _isInWishlist = isInList;
@@ -54,312 +66,30 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
-  Future<void> _incrementViewCount() async {
-    if (!mounted) return;
-
-    try {
-      final productProvider = Provider.of<ProductProvider>(context, listen: false);
-      await productProvider.incrementViewCount(_currentItem.id);
-    } catch (e) {
-      debugPrint('❌ Error incrementing view count: $e');
-    }
-  }
-
-  // Add method to refresh product data
   Future<void> _refreshProductData() async {
     if (!mounted) return;
-
     try {
-      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final productProvider =
+          Provider.of<ProductProvider>(context, listen: false);
       final updatedProduct = productProvider.getProductById(_currentItem.id);
-
       if (updatedProduct != null && mounted) {
         setState(() {
           _currentItem = updatedProduct;
         });
-        debugPrint('✅ Product data refreshed successfully');
       }
     } catch (e) {
       debugPrint('❌ Error refreshing product data: $e');
     }
   }
 
-  void _showLoginRequiredDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Login Required'),
-        content: const Text('Please login to add items to your cart'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/auth');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Login'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _addToCart() async {
-    if (!mounted) return;
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    if (!authProvider.isAuthenticated) {
-      _showLoginRequiredDialog();
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final cartProvider = Provider.of<CartProvider>(context, listen: false);
-
-      // Add to cart with quantity
-      cartProvider.addToCart(_currentItem, quantity: _selectedQuantity);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✨ Added $_selectedQuantity item(s) to cart'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-          action: SnackBarAction(
-            label: 'VIEW CART',
-            textColor: Colors.white,
-            onPressed: () {
-              Navigator.pushNamed(context, '/cart');
-            },
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding to cart: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _toggleWishlist() async {
-    if (!mounted) return;
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    if (!authProvider.isAuthenticated) {
-      _showLoginRequiredDialog();
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final wishlistProvider = Provider.of<WishlistProvider>(context, listen: false);
-
-      await wishlistProvider.toggleWishlist(authProvider.user!.uid, _currentItem);
-
-      if (!mounted) return;
-
-      setState(() {
-        _isInWishlist = !_isInWishlist;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isInWishlist ? 'Added to wishlist' : 'Removed from wishlist'),
-          backgroundColor: _isInWishlist ? Colors.green : Colors.red,
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _contactSeller() async {
-    if (!mounted) return;
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    if (!authProvider.isAuthenticated) {
-      _showLoginRequiredDialog();
-      return;
-    }
-
-    // Show contact options
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.chat, color: Colors.green),
-              title: const Text('Send Message'),
-              subtitle: Text('Chat with ${_currentItem.sellerName}'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(
-                  context,
-                  '/chat',
-                  arguments: {
-                    'sellerId': _currentItem.sellerId,
-                    'sellerName': _currentItem.sellerName,
-                    'productId': _currentItem.id,
-                    'productTitle': _currentItem.title,
-                  },
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.phone, color: Colors.blue),
-              title: const Text('Call Seller'),
-              subtitle: const Text('Coming soon'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Calling feature coming soon!')),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.email, color: Colors.orange),
-              title: const Text('Email Seller'),
-              subtitle: const Text('Coming soon'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Email feature coming soon!')),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _shareItem() async {
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.share, color: Colors.green),
-              title: const Text('Share via...'),
-              subtitle: const Text('Share this item with others'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Sharing feature coming soon!'),
-                    duration: Duration(seconds: 1),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy, color: Colors.grey),
-              title: const Text('Copy Link'),
-              onTap: () {
-                Navigator.pop(context);
-                _copyLink();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _copyLink() async {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Link copied to clipboard!'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _showReportDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Report Item'),
-        content: const Text('Are you sure you want to report this item?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Thank you for reporting. Our team will review this item.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Report'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context);
     final isOwner = authProvider.user?.uid == _currentItem.sellerId;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Custom Sliver App Bar with image carousel
           SliverAppBar(
             expandedHeight: 350,
             floating: false,
@@ -368,53 +98,71 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Image Carousel
                   if (_currentItem.imageUrls.isNotEmpty)
-                    PageView.builder(
-                      itemCount: _currentItem.imageUrls.length,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentImageIndex = index;
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        return Image.network(
-                          _currentItem.imageUrls[index],
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.grey[200],
-                              child: const Center(
-                                child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                    GestureDetector(
+                      onTap: () {
+                        debugPrint("🖼️ IMAGE TAPPED - Opening full screen");
+                        if (mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FullScreenImageGallery(
+                                images: _currentItem.imageUrls,
+                                initialIndex: _currentImageIndex,
                               ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.grey[200],
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                      : null,
+                            ),
+                          );
+                        }
+                      },
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: _currentItem.imageUrls.length,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentImageIndex = index;
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          return Image.network(
+                            _currentItem.imageUrls[index],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: Icon(Icons.broken_image,
+                                      size: 50, color: Colors.grey),
                                 ),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                              );
+                            },
+                          );
+                        },
+                      ),
                     )
                   else
-                    Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+                    GestureDetector(
+                      onTap: () {
+                        debugPrint("🖼️ NO IMAGE - Opening placeholder");
+                        if (mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FullScreenImageGallery(
+                                images: ['https://via.placeholder.com/400'],
+                                initialIndex: 0,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: Icon(Icons.image_not_supported,
+                              size: 50, color: Colors.grey),
+                        ),
                       ),
                     ),
-
-                  // Image indicator dots
                   if (_currentItem.imageUrls.length > 1)
                     Positioned(
                       bottom: 16,
@@ -424,7 +172,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(
                           _currentItem.imageUrls.length,
-                              (index) => Container(
+                          (index) => Container(
                             width: 8,
                             height: 8,
                             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -432,41 +180,44 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                               shape: BoxShape.circle,
                               color: _currentImageIndex == index
                                   ? Colors.green
-                                  : Colors.white.withAlpha(128),
+                                  : Colors.white,
                             ),
                           ),
                         ),
                       ),
                     ),
-
-                  // Gradient overlay
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withAlpha(100),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Image counter
                   if (_currentItem.imageUrls.length > 1)
                     Positioned(
                       top: 50,
                       right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withAlpha(128),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${_currentImageIndex + 1}/${_currentItem.imageUrls.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                      child: GestureDetector(
+                        onTap: () {
+                          debugPrint(
+                              "🖼️ COUNTER TAPPED - Opening full screen");
+                          if (mounted) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FullScreenImageGallery(
+                                  images: _currentItem.imageUrls,
+                                  initialIndex: _currentImageIndex,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(128),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${_currentImageIndex + 1}/${_currentItem.imageUrls.length}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12),
+                          ),
                         ),
                       ),
                     ),
@@ -485,41 +236,30 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
-              // Wishlist button
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(200),
-                    shape: BoxShape.circle,
+              if (!isOwner)
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(200),
+                      shape: BoxShape.circle,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _isInWishlist
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _isInWishlist ? Colors.red : Colors.black,
+                            size: 22,
+                          ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                      : Icon(
-                    _isInWishlist ? Icons.favorite : Icons.favorite_border,
-                    color: _isInWishlist ? Colors.red : Colors.black,
-                    size: 22,
-                  ),
+                  onPressed: _isLoading ? null : _toggleWishlist,
                 ),
-                onPressed: _isLoading ? null : _toggleWishlist,
-              ),
-              // Share button
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(200),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.share, color: Colors.blue, size: 22),
-                ),
-                onPressed: _shareItem,
-              ),
-              // Edit button (if owner)
               if (isOwner)
                 IconButton(
                   icon: Container(
@@ -528,12 +268,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       color: Colors.white.withAlpha(200),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.edit, color: Colors.orange, size: 22),
+                    child:
+                        const Icon(Icons.edit, color: Colors.orange, size: 22),
                   ),
                   onPressed: () async {
-                    debugPrint('🔍 Navigating to edit product: ${_currentItem.id}');
-
-                    // Use MaterialPageRoute
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -542,38 +280,19 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         ),
                       ),
                     );
-
                     if (result == true && mounted) {
-                      debugPrint('✅ Product was updated, refreshing...');
                       await _refreshProductData();
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Product updated successfully'),
-                              backgroundColor: Colors.green,
-                              duration: Duration(seconds: 2),));
-                      // Show success message
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Product updated successfully'),
-                          backgroundColor: Colors.green,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
                     }
                   },
                 ),
             ],
           ),
-
-          // Item Details Content
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Category & Condition Chips
                   Row(
                     children: [
                       _buildInfoChip(
@@ -590,21 +309,13 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 15),
-
-                  // Title
                   Text(
                     _currentItem.title,
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-
                   const SizedBox(height: 8),
-
-                  // Seller Info and Stats
                   Row(
                     children: [
                       CircleAvatar(
@@ -615,10 +326,9 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                               ? _currentItem.sellerName[0].toUpperCase()
                               : 'U',
                           style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -634,23 +344,20 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                         width: 4,
                         height: 4,
                         decoration: const BoxDecoration(
-                          color: Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
+                            color: Colors.grey, shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.visibility, size: 16, color: Colors.grey),
+                      const Icon(Icons.visibility,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
                         '${_currentItem.viewCount} views',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Price Section
                   Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
@@ -666,10 +373,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                           children: [
                             const Text(
                               'Price',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey),
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -683,9 +388,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                                     color: Colors.green,
                                   ),
                                 ),
-                                if (_currentItem.specifications?['originalPrice'] != null)
+                                if (_currentItem
+                                        .specifications?['originalPrice'] !=
+                                    null)
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 8, bottom: 8),
+                                    padding: const EdgeInsets.only(
+                                        left: 8, bottom: 8),
                                     child: Text(
                                       '₹${_currentItem.specifications!['originalPrice']}',
                                       style: const TextStyle(
@@ -699,12 +407,11 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                             ),
                           ],
                         ),
-                        if (_currentItem.specifications?['isNegotiable'] == true)
+                        if (_currentItem.specifications?['isNegotiable'] ==
+                            true)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
+                                horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.orange.withAlpha(20),
                               borderRadius: BorderRadius.circular(20),
@@ -721,311 +428,78 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 25),
-
-                  // Quantity Selector
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Quantity',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: _selectedQuantity > 1
-                                  ? () {
-                                setState(() {
-                                  _selectedQuantity--;
-                                });
-                              }
-                                  : null,
-                              color: _selectedQuantity > 1 ? Colors.green : Colors.grey,
-                            ),
-                            Container(
-                              width: 40,
-                              alignment: Alignment.center,
-                              child: Text(
-                                '$_selectedQuantity',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                  if (!isOwner && _currentItem.isAvailable)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 15, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Quantity',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: _selectedQuantity > 1
+                                    ? () {
+                                        setState(() {
+                                          _selectedQuantity--;
+                                        });
+                                      }
+                                    : null,
+                                color: _selectedQuantity > 1
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                              Container(
+                                width: 40,
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '$_selectedQuantity',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
-                              onPressed: _selectedQuantity < 10
-                                  ? () {
-                                setState(() {
-                                  _selectedQuantity++;
-                                });
-                              }
-                                  : null,
-                              color: _selectedQuantity < 10 ? Colors.green : Colors.grey,
-                            ),
-                          ],
-                        ),
-                      ],
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: _selectedQuantity < 10
+                                    ? () {
+                                        setState(() {
+                                          _selectedQuantity++;
+                                        });
+                                      }
+                                    : null,
+                                color: _selectedQuantity < 10
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  // Description Section
+                  if (!isOwner && _currentItem.isAvailable)
+                    const SizedBox(height: 25),
                   const Text(
                     'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     _currentItem.description,
                     style: const TextStyle(fontSize: 15, height: 1.5),
                   ),
-
                   const SizedBox(height: 25),
-
-                  // Details Section
-                  const Text(
-                    'Item Details',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Details Grid
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      children: [
-                        if (_currentItem.specifications?['brand'] != null)
-                          _buildDetailRow(
-                            Icons.branding_watermark,
-                            'Brand',
-                            _currentItem.specifications!['brand'],
-                          ),
-                        if (_currentItem.specifications?['size'] != null) ...[
-                          if (_currentItem.specifications?['brand'] != null)
-                            const Divider(height: 20),
-                          _buildDetailRow(
-                            Icons.straighten,
-                            'Size',
-                            _currentItem.specifications!['size'],
-                          ),
-                        ],
-                        if (_currentItem.specifications?['color'] != null) ...[
-                          const Divider(height: 20),
-                          _buildDetailRow(
-                            Icons.palette,
-                            'Color',
-                            _currentItem.specifications!['color'],
-                          ),
-                        ],
-                        if (_currentItem.specifications?['material'] != null) ...[
-                          const Divider(height: 20),
-                          _buildDetailRow(
-                            Icons.category,
-                            'Material',
-                            _currentItem.specifications!['material'],
-                          ),
-                        ],
-                        if (_currentItem.specifications?['gender'] != null) ...[
-                          const Divider(height: 20),
-                          _buildDetailRow(
-                            Icons.person,
-                            'Gender',
-                            _currentItem.specifications!['gender'],
-                          ),
-                        ],
-                        if (_currentItem.location != null) ...[
-                          const Divider(height: 20),
-                          _buildDetailRow(
-                            Icons.location_on,
-                            'Location',
-                            _currentItem.location!,
-                          ),
-                        ],
-                        const Divider(height: 20),
-                        _buildDetailRow(
-                          Icons.calendar_today,
-                          'Listed',
-                          _formatDate(_currentItem.createdAt),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  // Shipping Info
-                  if (_currentItem.specifications?['canShip'] == true)
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withAlpha(8),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.withAlpha(30)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withAlpha(20),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.local_shipping, color: Colors.blue),
-                          ),
-                          const SizedBox(width: 15),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Shipping Available',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Seller can ship this item (buyer pays shipping)',
-                                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  const SizedBox(height: 25),
-
-                  // Seller Information Card
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(15),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Seller Information',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 25,
-                                backgroundColor: Colors.green.shade100,
-                                child: Text(
-                                  _currentItem.sellerName.isNotEmpty
-                                      ? _currentItem.sellerName[0].toUpperCase()
-                                      : 'U',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _currentItem.sellerName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.star, size: 16, color: Colors.amber),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '4.8 (128 reviews)',
-                                          style: const TextStyle(color: Colors.grey),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Member since ${_formatMonthYear(_currentItem.createdAt)}',
-                                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 15),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _contactSeller,
-                                  icon: const Icon(Icons.message),
-                                  label: const Text('Message'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: _contactSeller,
-                                  icon: const Icon(Icons.phone),
-                                  label: const Text('Contact'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 25),
-
-                  // Safety Tips
                   Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
@@ -1043,9 +517,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                             Text(
                               'Safety Tips',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                                  fontWeight: FontWeight.bold, fontSize: 16),
                             ),
                           ],
                         ),
@@ -1058,10 +530,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
-                  // Report Item
                   Center(
                     child: TextButton.icon(
                       onPressed: _showReportDialog,
@@ -1072,7 +541,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
                 ],
               ),
@@ -1080,15 +548,47 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           ),
         ],
       ),
-
-      // Bottom Action Bar
-      bottomNavigationBar: isOwner
-          ? _buildOwnerBottomBar()
-          : _buildBuyerBottomBar(),
+      bottomNavigationBar:
+          isOwner ? _buildOwnerBottomBar() : _buildBuyerBottomBar(),
     );
   }
 
   Widget _buildBuyerBottomBar() {
+    if (!_currentItem.isAvailable) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withAlpha(26),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: const Center(
+              child: Text(
+                'Item Sold',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1104,7 +604,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       child: SafeArea(
         child: Row(
           children: [
-            // Message Button
             Expanded(
               child: OutlinedButton(
                 onPressed: _isLoading ? null : _contactSeller,
@@ -1120,7 +619,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               ),
             ),
             const SizedBox(width: 15),
-            // Add to Cart Button
             Expanded(
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _addToCart,
@@ -1134,13 +632,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                 ),
                 child: _isLoading
                     ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
                     : const Text('Add to Cart'),
               ),
             ),
@@ -1168,9 +667,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () {
-                  _showEditDeleteOptions();
-                },
+                onPressed: _showEditDeleteOptions,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   side: const BorderSide(color: Colors.orange),
@@ -1185,9 +682,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             const SizedBox(width: 15),
             Expanded(
               child: ElevatedButton(
-                onPressed: () {
-                  _shareItem();
-                },
+                onPressed: _shareProduct,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
@@ -1205,7 +700,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     );
   }
 
-  // Helper Methods
   Widget _buildInfoChip({
     required IconData icon,
     required String label,
@@ -1213,10 +707,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     bool showIcon = true,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withAlpha(20),
         borderRadius: BorderRadius.circular(20),
@@ -1224,23 +715,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (showIcon)
-            Icon(
-              icon,
-              size: 14,
-              color: color,
-            ),
+          if (showIcon) Icon(icon, size: 14, color: color),
           if (showIcon) const SizedBox(width: 4),
-          Container(
-            width: showIcon ? null : 8,
-            height: showIcon ? null : 8,
-            decoration: showIcon
-                ? null
-                : BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
+          if (!showIcon)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
             ),
-          ),
           if (!showIcon) const SizedBox(width: 4),
           Text(
             label,
@@ -1248,37 +730,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               color: color,
               fontWeight: FontWeight.w500,
               fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.grey[600]),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
             ),
           ),
         ],
@@ -1324,31 +775,296 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Login Required'),
+        content: const Text('Please login to add items to your cart'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/auth');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Login'),
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (difference.inDays < 1) {
-      return 'Today';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inDays < 30) {
-      return '${(difference.inDays / 7).floor()} weeks ago';
-    } else if (difference.inDays < 365) {
-      return '${(difference.inDays / 30).floor()} months ago';
-    } else {
-      return '${(difference.inDays / 365).floor()} years ago';
+  Future<void> _addToCart() async {
+    if (!mounted) return;
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
+    if (!authProvider.isAuthenticated) {
+      _showLoginRequiredDialog();
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.addToCart(_currentItem, quantity: _selectedQuantity);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✨ Added $_selectedQuantity item(s) to cart'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'VIEW CART',
+            textColor: Colors.white,
+            onPressed: () {
+              //  Navigate to cart screen properly
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CartScreen(),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding to cart: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String _formatMonthYear(DateTime date) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[date.month - 1]} ${date.year}';
+  Future<void> _toggleWishlist() async {
+    if (!mounted) return;
+
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.uid;
+
+    if (userId == null) {
+      debugPrint('❌ No user ID');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      debugPrint('🔍 Testing write for user: $userId');
+      debugPrint('🔍 Writing to: users/$userId/wishlist/test_doc');
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('wishlist')
+          .doc('test_doc')
+          .set({
+        'test': true,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ TEST PASSED! Write successful');
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('wishlist')
+          .doc('test_doc')
+          .delete();
+
+      final wishlistProvider =
+          Provider.of<WishlistProvider>(context, listen: false);
+      await wishlistProvider.toggleWishlist(userId, _currentItem);
+
+      setState(() {
+        _isInWishlist = !_isInWishlist;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              _isInWishlist ? 'Added to wishlist' : 'Removed from wishlist'),
+          backgroundColor: _isInWishlist ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ TEST FAILED: $e');
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Firestore Error'),
+          content: SingleChildScrollView(
+            child: Text('Error: ${e.toString()}'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  //  _contactSeller method
+  Future<void> _contactSeller() async {
+    if (!mounted) return;
+
+    final authProvider =
+        Provider.of<app_auth.AuthProvider>(context, listen: false);
+
+    if (!authProvider.isAuthenticated) {
+      _showLoginRequiredDialog();
+      return;
+    }
+
+    final userId = authProvider.user!.uid;
+
+    if (userId == _currentItem.sellerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You cannot message yourself'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final userName = authProvider.userData?['name'] ??
+        authProvider.user?.displayName ??
+        'Buyer';
+
+    setState(() => _isLoading = true);
+
+    try {
+      debugPrint('🟢 Opening chat for product: ${_currentItem.id}');
+
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+
+      // ALWAYS check for existing chat first
+      String? existingChatId = await chatProvider.getExistingChatId(
+        buyerId: userId,
+        sellerId: _currentItem.sellerId,
+        productId: _currentItem.id,
+      );
+
+      String chatId;
+
+      if (existingChatId != null) {
+        chatId = existingChatId;
+        debugPrint('✅ Using EXISTING chat with ID: $chatId');
+
+        // No need to create a new chat, just use the existing one
+      } else {
+        // No existing chat found, create a new one with generated ID
+        final generatedId = chatProvider.generateChatId(
+          userId,
+          _currentItem.sellerId,
+          _currentItem.id,
+        );
+
+        debugPrint('🆕 Creating NEW chat with ID: $generatedId');
+
+        chatId = await chatProvider.getOrCreateChat(
+          chatId: generatedId,
+          buyerId: userId,
+          buyerName: userName,
+          sellerId: _currentItem.sellerId,
+          sellerName: _currentItem.sellerName,
+          productId: _currentItem.id,
+          productTitle: _currentItem.title,
+          productImage: _currentItem.imageUrls.isNotEmpty
+              ? _currentItem.imageUrls.first
+              : null,
+        );
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => UserChatScreen(
+            chatId: chatId,
+            otherUserName: _currentItem.sellerName,
+            productTitle: _currentItem.title,
+            otherUserId: _currentItem.sellerId,
+            productId: _currentItem.id,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error in _contactSeller: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error starting chat: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _shareProduct() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Share feature coming soon!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showReportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report Item'),
+        content: const Text('Are you sure you want to report this item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Thank you for reporting. Our team will review this item.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showEditDeleteOptions() {
@@ -1363,25 +1079,25 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               title: const Text('Edit Listing'),
               onTap: () async {
                 Navigator.pop(context);
-                final result = await Navigator.pushNamed(
+                final result = await Navigator.push(
                   context,
-                  '/edit-product',
-                  arguments: _currentItem,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        EditProductScreen(product: _currentItem),
+                  ),
                 );
-
-                if (result == true && mounted) {
-                  await _refreshProductData();
-                }
+                if (result == true && mounted) await _refreshProductData();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.visibility_off, color: Colors.blue),
-              title: const Text('Mark as Sold'),
-              onTap: () {
-                Navigator.pop(context);
-                _markAsSold();
-              },
-            ),
+            if (_currentItem.isAvailable)
+              ListTile(
+                leading: const Icon(Icons.visibility_off, color: Colors.blue),
+                title: const Text('Mark as Sold'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _markAsSold();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete Listing'),
@@ -1398,7 +1114,6 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
   void _markAsSold() async {
     if (!mounted) return;
-
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1420,34 +1135,26 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         ],
       ),
     );
-
     if (confirm != true) return;
-
     setState(() => _isLoading = true);
-
     try {
-      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final productProvider =
+          Provider.of<ProductProvider>(context, listen: false);
       await productProvider.updateProduct(
         productId: _currentItem.id,
         isAvailable: false,
       );
-
       if (!mounted) return;
-
-      // Refresh product data
       await _refreshProductData();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Item marked as sold'),
           backgroundColor: Colors.green,
         ),
       );
-
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
@@ -1455,20 +1162,19 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _confirmDelete() async {
     if (!mounted) return;
-
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Listing'),
-        content: const Text('Are you sure you want to delete this item? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this item? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1485,31 +1191,25 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         ],
       ),
     );
-
     if (confirm != true) return;
-
     setState(() => _isLoading = true);
-
     try {
-      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final productProvider =
+          Provider.of<ProductProvider>(context, listen: false);
       await productProvider.permanentlyDeleteProduct(
-          _currentItem.id,
-          _currentItem.imageUrls
+        _currentItem.id,
+        _currentItem.imageUrls,
       );
-
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Item deleted successfully'),
           backgroundColor: Colors.green,
         ),
       );
-
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: ${e.toString()}'),
@@ -1517,9 +1217,105 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+}
+
+class FullScreenImageGallery extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+
+  const FullScreenImageGallery({
+    super.key,
+    required this.images,
+    required this.initialIndex,
+  });
+
+  @override
+  State<FullScreenImageGallery> createState() => _FullScreenImageGalleryState();
+}
+
+class _FullScreenImageGalleryState extends State<FullScreenImageGallery> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.images.length,
+            onPageChanged: (index) => setState(() => _currentIndex = index),
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Center(
+                  child: InteractiveViewer(
+                    panEnabled: true,
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: Image.network(
+                      widget.images[index],
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          Positioned(
+            top: 40,
+            right: 20,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(128),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(128),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.images.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
