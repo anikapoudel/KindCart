@@ -1,9 +1,11 @@
-// lib/screens/wishlist_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/auth_provider.dart';
+import '../models/product_model.dart';
 import 'item_detail_screen.dart';
 import 'auth_screen.dart';
+import 'shop_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
   const WishlistScreen({super.key});
@@ -12,41 +14,48 @@ class WishlistScreen extends StatefulWidget {
   State<WishlistScreen> createState() => _WishlistScreenState();
 }
 
-class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProviderStateMixin {
-  bool _isLoggedIn = false; // Will be replaced with actual auth state
-  late TabController _tabController;
+class _WishlistScreenState extends State<WishlistScreen> {
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _loadWishlistData();
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload when returning to screen
+    _loadWishlistData();
+  }
+
+  Future<void> _loadWishlistData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final wishlistProvider =
+        Provider.of<WishlistProvider>(context, listen: false);
+
+    if (authProvider.isAuthenticated) {
+      setState(() => _isLoading = true);
+      await wishlistProvider.loadWishlist(authProvider.user!.uid);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final isLoggedIn = authProvider.isAuthenticated;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Wishlist'),
         backgroundColor: Colors.pink,
         foregroundColor: Colors.white,
-        bottom: _isLoggedIn ? TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.favorite), text: 'Items'),
-            Tab(icon: Icon(Icons.favorite_border), text: 'Saved Searches'),
-          ],
-        ) : null,
         actions: [
-          if (_isLoggedIn)
+          if (isLoggedIn)
             IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
               onPressed: _showClearWishlistDialog,
@@ -54,7 +63,11 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
             ),
         ],
       ),
-      body: _isLoggedIn ? _buildWishlistContent() : _buildLoginPrompt(),
+      body: isLoggedIn
+          ? _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _buildWishlistContent()
+          : _buildLoginPrompt(),
     );
   }
 
@@ -101,7 +114,7 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                     context,
                     MaterialPageRoute(builder: (context) => const AuthScreen()),
                   ).then((_) {
-                    setState(() {});
+                    _loadWishlistData();
                   });
                 },
                 style: ElevatedButton.styleFrom(
@@ -121,22 +134,11 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
     );
   }
 
-  // Main Wishlist Content for logged-in users
+  // Main Wishlist Content
   Widget _buildWishlistContent() {
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        _buildItemsTab(),
-        _buildSavedSearchesTab(),
-      ],
-    );
-  }
-
-  // Tab 1: Saved Items
-  Widget _buildItemsTab() {
     return Consumer<WishlistProvider>(
-      builder: (context, wishlist, child) {
-        if (wishlist.items.isEmpty) {
+      builder: (context, wishlistProvider, child) {
+        if (wishlistProvider.items.isEmpty) {
           return _buildEmptyWishlist();
         }
 
@@ -150,30 +152,26 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${wishlist.items.length} items saved',
+                    '${wishlistProvider.items.length} items saved',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.sort),
                     onSelected: (value) {
-                      wishlist.sortItems(value);
+                      wishlistProvider.sortItems(value);
                     },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
                         value: 'newest',
                         child: Text('Newest first'),
                       ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'price_low',
                         child: Text('Price: Low to High'),
                       ),
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'price_high',
                         child: Text('Price: High to Low'),
-                      ),
-                      const PopupMenuItem(
-                        value: 'name',
-                        child: Text('Name'),
                       ),
                     ],
                   ),
@@ -191,10 +189,11 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                 ),
-                itemCount: wishlist.items.length,
+                itemCount: wishlistProvider.items.length,
                 itemBuilder: (context, index) {
-                  final item = wishlist.items[index];
-                  return _buildWishlistItemCard(item, index, wishlist);
+                  final product = wishlistProvider.items[index];
+                  return _buildWishlistItemCard(
+                      product, index, wishlistProvider);
                 },
               ),
             ),
@@ -232,35 +231,26 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
               style: TextStyle(color: Colors.grey[600]),
             ),
             const SizedBox(height: 30),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/shop');
-                  },
-                  icon: const Icon(Icons.shopping_bag),
-                  label: const Text('Browse Items'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
+            // Only one button - Browse Items
+            ElevatedButton.icon(
+              onPressed: () {
+                // Navigate to shop screen properly
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ShopScreen()),
+                );
+              },
+              icon: const Icon(Icons.shopping_bag),
+              label: const Text('Browse Items'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
                 ),
-                const SizedBox(width: 10),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/donate');
-                  },
-                  icon: const Icon(Icons.volunteer_activism),
-                  label: const Text('Donate'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.pink,
-                    side: const BorderSide(color: Colors.pink),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
@@ -269,13 +259,16 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
   }
 
   // Wishlist Item Card
-  Widget _buildWishlistItemCard(Map<String, dynamic> item, int index, WishlistProvider wishlist) {
+  Widget _buildWishlistItemCard(
+      ProductModel product, int index, WishlistProvider wishlistProvider) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ItemDetailScreen(item: item),
+            builder: (context) => ItemDetailScreen(item: product),
           ),
         );
       },
@@ -299,26 +292,35 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
                     ),
+                    image: product.imageUrls.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(product.imageUrls.first),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                  child: Center(
-                    child: Text(
-                      item['image'] ?? '📦',
-                      style: const TextStyle(fontSize: 40),
-                    ),
-                  ),
+                  child: product.imageUrls.isEmpty
+                      ? const Center(
+                          child: Icon(Icons.image_not_supported,
+                              size: 40, color: Colors.grey),
+                        )
+                      : null,
                 ),
                 // Price Tag
                 Positioned(
                   top: 8,
                   left: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.green,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      item['price'] ?? '\$0',
+                      product.price == 0
+                          ? 'FREE'
+                          : '₹${product.price.toStringAsFixed(0)}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -333,9 +335,14 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                   right: 4,
                   child: GestureDetector(
                     onTap: () {
-                      _showRemoveFromWishlistDialog(context, item['name'], () {
-                        wishlist.removeItem(index);
-                      });
+                      _showRemoveFromWishlistDialog(
+                        context,
+                        product.title,
+                        () {
+                          _removeFromWishlist(authProvider.user!.uid,
+                              product.id, product.title);
+                        },
+                      );
                     },
                     child: Container(
                       padding: const EdgeInsets.all(6),
@@ -351,8 +358,8 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                     ),
                   ),
                 ),
-                // Sold Out Badge (if applicable)
-                if (item['isSold'] == true)
+                // Sold Out Badge (if not available)
+                if (!product.isAvailable)
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
@@ -382,13 +389,14 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                 children: [
                   // Category
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.pink.withAlpha(20),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      item['category'] ?? 'Item',
+                      product.category,
                       style: TextStyle(
                         fontSize: 10,
                         color: Colors.pink[700],
@@ -400,7 +408,7 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
 
                   // Title
                   Text(
-                    item['name'] ?? 'Item Name',
+                    product.title,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -410,7 +418,7 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                   ),
                   const SizedBox(height: 6),
 
-                  // Seller and Rating
+                  // Seller
                   Row(
                     children: [
                       Expanded(
@@ -420,14 +428,17 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                               radius: 8,
                               backgroundColor: Colors.green.shade100,
                               child: Text(
-                                item['seller']?[0] ?? 'U',
-                                style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+                                product.sellerName.isNotEmpty
+                                    ? product.sellerName[0]
+                                    : 'U',
+                                style: const TextStyle(
+                                    fontSize: 8, fontWeight: FontWeight.bold),
                               ),
                             ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                item['seller'] ?? 'Seller',
+                                product.sellerName,
                                 style: const TextStyle(fontSize: 10),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -438,10 +449,11 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.star, size: 10, color: Colors.amber),
+                          const Icon(Icons.favorite,
+                              size: 10, color: Colors.red),
                           const SizedBox(width: 2),
                           Text(
-                            item['rating']?.toString() ?? '4.5',
+                            '${product.wishlistCount}',
                             style: const TextStyle(fontSize: 10),
                           ),
                         ],
@@ -451,30 +463,37 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
 
                   const SizedBox(height: 8),
 
-                  // Action Buttons
+                  // View Button
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: item['isSold'] == true ? null : () {
-                            // Add to cart
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('${item['name']} added to cart'),
-                                backgroundColor: Colors.green,
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
+                          onPressed: !product.isAvailable
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          ItemDetailScreen(item: product),
+                                    ),
+                                  );
+                                },
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 8),
-                            side: BorderSide(color: item['isSold'] == true ? Colors.grey : Colors.green),
-                            foregroundColor: item['isSold'] == true ? Colors.grey : Colors.green,
+                            side: BorderSide(
+                                color: !product.isAvailable
+                                    ? Colors.grey
+                                    : Colors.green),
+                            foregroundColor: !product.isAvailable
+                                ? Colors.grey
+                                : Colors.green,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          child: const Text('Add to Cart', style: TextStyle(fontSize: 10)),
+                          child: const Text('View',
+                              style: TextStyle(fontSize: 10)),
                         ),
                       ),
                     ],
@@ -488,140 +507,43 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
     );
   }
 
-  // Tab 2: Saved Searches
-  Widget _buildSavedSearchesTab() {
-    final List<Map<String, dynamic>> savedSearches = [
-      {
-        'query': 'winter jacket',
-        'filters': {'category': 'Clothing', 'maxPrice': 50, 'condition': 'Good'},
-        'count': 12,
-        'date': '2 days ago',
-      },
-      {
-        'query': 'story books',
-        'filters': {'category': 'Books', 'minPrice': 5},
-        'count': 8,
-        'date': '5 days ago',
-      },
-      {
-        'query': 'coffee table',
-        'filters': {'category': 'Furniture', 'maxPrice': 100},
-        'count': 4,
-        'date': '1 week ago',
-      },
-    ];
+  // Helper method to handle removal
+  Future<void> _removeFromWishlist(
+      String userId, String productId, String productName) async {
+    final wishlistProvider =
+        Provider.of<WishlistProvider>(context, listen: false);
 
-    if (savedSearches.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
-            const SizedBox(height: 20),
-            const Text(
-              'No saved searches',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Save your search filters to get notified',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
+    await wishlistProvider.removeFromWishlist(userId, productId);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$productName removed from wishlist'),
+          duration: const Duration(seconds: 1),
+          backgroundColor: Colors.pink,
         ),
       );
     }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: savedSearches.length,
-      itemBuilder: (context, index) {
-        final search = savedSearches[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.pink.withAlpha(20),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.search, color: Colors.pink),
-            ),
-            title: Text(
-              search['query'],
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text('${search['count']} new items'),
-                Text('Saved ${search['date']}'),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_active, color: Colors.green),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notifications enabled for this search'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () {
-                    setState(() {
-                      savedSearches.removeAt(index);
-                    });
-                  },
-                ),
-              ],
-            ),
-            onTap: () {
-              // Perform the saved search
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Searching for "${search['query']}"...'),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
   }
 
   // Helper Methods
-  void _showRemoveFromWishlistDialog(BuildContext context, String itemName, VoidCallback onConfirm) {
+  void _showRemoveFromWishlistDialog(
+      BuildContext context, String itemName, VoidCallback onConfirm) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Remove from Wishlist'),
-        content: Text('Are you sure you want to remove "$itemName" from your wishlist?'),
+        content: Text(
+            'Are you sure you want to remove "$itemName" from your wishlist?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               onConfirm();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$itemName removed from wishlist'),
-                  duration: const Duration(seconds: 1),
-                  backgroundColor: Colors.pink,
-                ),
-              );
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Remove'),
@@ -632,27 +554,23 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
   }
 
   void _showClearWishlistDialog() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clear Wishlist'),
-        content: const Text('Are you sure you want to remove all items from your wishlist?'),
+        content: const Text(
+            'Are you sure you want to remove all items from your wishlist?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              Provider.of<WishlistProvider>(context, listen: false).clearWishlist();
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Wishlist cleared'),
-                  duration: Duration(seconds: 1),
-                  backgroundColor: Colors.pink,
-                ),
-              );
+              Navigator.pop(dialogContext);
+              _clearWishlist(authProvider.user!.uid);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Clear All'),
@@ -660,5 +578,21 @@ class _WishlistScreenState extends State<WishlistScreen> with SingleTickerProvid
         ],
       ),
     );
+  }
+
+  Future<void> _clearWishlist(String userId) async {
+    final wishlistProvider =
+        Provider.of<WishlistProvider>(context, listen: false);
+    await wishlistProvider.clearWishlist(userId);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wishlist cleared'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.pink,
+        ),
+      );
+    }
   }
 }
