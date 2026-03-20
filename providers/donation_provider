@@ -1,0 +1,254 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import '../models/donation_model.dart';
+
+class DonationProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  List<DonationModel> _userDonations = [];
+  List<DonationModel> _completedDonations = [];
+  List<DonationModel> _pendingDonations = [];
+  List<DonationModel> _approvedDonations = [];
+  List<DonationModel> _rejectedDonations = [];
+
+  // Getters
+  List<DonationModel> get userDonations => _userDonations;
+  List<DonationModel> get completedDonations => _completedDonations;
+  List<DonationModel> get pendingDonations => _pendingDonations;
+  List<DonationModel> get approvedDonations => _approvedDonations;
+  List<DonationModel> get rejectedDonations => _rejectedDonations;
+
+  // Load ALL donations for admin
+  Future<void> loadAllDonations() async {
+    try {
+      debugPrint('📥 Loading all donations for admin...');
+
+      final snapshot = await _firestore
+          .collection('donations')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final allDonations = snapshot.docs
+          .map((doc) => DonationModel.fromMap(doc.id, doc.data()))
+          .toList();
+
+      // Separate by status
+      _pendingDonations = allDonations
+          .where((d) => d.status == DonationStatus.pending)
+          .toList();
+
+      _approvedDonations = allDonations
+          .where((d) => d.status == DonationStatus.approved)
+          .toList();
+
+      _completedDonations = allDonations
+          .where((d) => d.status == DonationStatus.completed)
+          .toList();
+
+      _rejectedDonations = allDonations
+          .where((d) => d.status == DonationStatus.rejected)
+          .toList();
+
+      debugPrint('✅ Loaded: ${_pendingDonations.length} pending, '
+          '${_approvedDonations.length} approved, '
+          '${_completedDonations.length} completed, '
+          '${_rejectedDonations.length} rejected');
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading all donations: $e');
+    }
+  }
+
+  // Load completed donations (for donate_screen)
+  Future<void> loadCompletedDonations() async {
+    try {
+      debugPrint('📥 Loading completed donations...');
+
+      final snapshot = await _firestore
+          .collection('donations')
+          .where('status', isEqualTo: DonationStatus.completed.index)
+          .orderBy('completedAt', descending: true)
+          .get();
+
+      _completedDonations = snapshot.docs
+          .map((doc) {
+        final data = doc.data();
+        debugPrint('📦 Donation ${doc.id} has ${data['donorImageUrls']?.length ?? 0} images');
+        return DonationModel.fromMap(doc.id, data);
+      })
+          .toList();
+
+      debugPrint('✅ Loaded ${_completedDonations.length} completed donations');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error loading completed donations: $e');
+    }
+  }
+
+// Update donation images 
+  Future<void> updateDonationImages(String donationId, List<String> imageUrls) async {
+    try {
+      debugPrint('📸 Updating donation images for: $donationId');
+      debugPrint('📸 Image URLs to save: $imageUrls');
+
+      await _firestore.collection('donations').doc(donationId).update({
+        'donorImageUrls': imageUrls,
+      });
+
+      debugPrint('✅ Donation images updated successfully');
+
+      // Refresh all data
+      await loadAllDonations();
+
+      // Also refresh user donations if we know the donor
+      final doc = await _firestore.collection('donations').doc(donationId).get();
+      final donorId = doc.data()?['donorId'];
+      if (donorId != null) {
+        await loadUserDonations(donorId);
+      }
+
+      //  Also reload completed donations to show in donate_screen
+      await loadCompletedDonations();
+
+      notifyListeners(); // Ensure UI updates
+    } catch (e) {
+      debugPrint('❌ Error updating donation images: $e');
+    }
+  }
+
+  // Load user's donations
+  Future<void> loadUserDonations(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('donations')
+          .where('donorId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _userDonations = snapshot.docs
+          .map((doc) => DonationModel.fromMap(doc.id, doc.data()))
+          .toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading user donations: $e');
+    }
+  }
+
+  // Load pending donations (for admin)
+  Future<void> loadPendingDonations() async {
+    try {
+      final snapshot = await _firestore
+          .collection('donations')
+          .where('status', isEqualTo: DonationStatus.pending.index)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _pendingDonations = snapshot.docs
+          .map((doc) => DonationModel.fromMap(doc.id, doc.data()))
+          .toList();
+      notifyListeners();
+
+      debugPrint('📊 Loaded ${_pendingDonations.length} pending donations');
+    } catch (e) {
+      debugPrint('Error loading pending donations: $e');
+    }
+  }
+
+  // Submit new donation 
+  Future<String?> submitDonation(DonationModel donation) async {
+    try {
+      debugPrint('📝 Submitting donation: ${donation.title}');
+
+      // Ensure all required fields are present
+      final Map<String, dynamic> donationMap = donation.toMap();
+      debugPrint('📝 Donation data: $donationMap');
+
+      final docRef = await _firestore.collection('donations').add(donationMap);
+      debugPrint('✅ Donation saved with ID: ${docRef.id}');
+
+      // Refresh all relevant data
+      await loadAllDonations(); // This will update admin view
+      await loadUserDonations(donation.donorId);
+      await loadPendingDonations();
+
+      return docRef.id;
+    } catch (e) {
+      debugPrint('❌ Error submitting donation: $e');
+      if (e is FirebaseException) {
+        debugPrint('❌ Firebase error code: ${e.code}');
+        debugPrint('❌ Firebase error message: ${e.message}');
+      }
+      return null;
+    }
+  }
+
+  // Admin: approve donation
+  Future<void> approveDonation(String donationId) async {
+    try {
+      await _firestore.collection('donations').doc(donationId).update({
+        'status': DonationStatus.approved.index,
+      });
+      await loadAllDonations(); // Refresh all
+    } catch (e) {
+      debugPrint('Error approving donation: $e');
+    }
+  }
+
+  // Admin: mark as completed (with proof)
+  Future<void> completeDonation({
+    required String donationId,
+    String? proofImageUrl,
+    required String recipientInfo,
+  }) async {
+    try {
+      debugPrint('✅ Completing donation: $donationId');
+
+      // First get the current donation to preserve donor images
+      final doc = await _firestore.collection('donations').doc(donationId).get();
+      final currentData = doc.data();
+
+      Map<String, dynamic> updateData = {
+        'status': DonationStatus.completed.index,
+        'recipientInfo': recipientInfo,
+        'completedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Only add proofImageUrl if it's provided
+      if (proofImageUrl != null && proofImageUrl.isNotEmpty) {
+        updateData['proofImageUrl'] = proofImageUrl;
+      }
+
+      // Ensure donorImageUrls are preserved
+      if (currentData != null && currentData.containsKey('donorImageUrls')) {
+        updateData['donorImageUrls'] = currentData['donorImageUrls'];
+      }
+
+      await _firestore.collection('donations').doc(donationId).update(updateData);
+
+      // Refresh all data
+      await loadAllDonations();
+      await loadCompletedDonations(); // Refresh donate_screen data
+
+      debugPrint('✅ Donation completed successfully');
+    } catch (e) {
+      debugPrint('❌ Error completing donation: $e');
+    }
+  }
+
+  // Admin: reject donation
+  Future<void> rejectDonation(String donationId, String reason) async {
+    try {
+      await _firestore.collection('donations').doc(donationId).update({
+        'status': DonationStatus.rejected.index,
+        'rejectionReason': reason,
+        'isAvailable': false,
+      });
+
+      await loadAllDonations(); // Refresh all
+    } catch (e) {
+      debugPrint('Error rejecting donation: $e');
+    }
+  }
+}
