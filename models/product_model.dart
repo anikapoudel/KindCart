@@ -4,6 +4,7 @@ class ProductModel {
   final String id;
   final String sellerId;
   final String sellerName;
+  final String sellerPhone; // Added seller phone
   final String title;
   final String description;
   final double price;
@@ -31,6 +32,7 @@ class ProductModel {
     required this.id,
     required this.sellerId,
     required this.sellerName,
+    required this.sellerPhone, // Added required
     required this.title,
     required this.description,
     required this.price,
@@ -54,6 +56,7 @@ class ProductModel {
     return {
       'sellerId': sellerId,
       'sellerName': sellerName,
+      'sellerPhone': sellerPhone, // Added seller phone
       'title': title,
       'description': description,
       'price': price,
@@ -79,6 +82,7 @@ class ProductModel {
       id: id,
       sellerId: map['sellerId'] ?? '',
       sellerName: map['sellerName'] ?? 'Unknown Seller',
+      sellerPhone: map['sellerPhone'] ?? 'Not provided', // Added with default
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       price: (map['price'] ?? 0).toDouble(),
@@ -98,6 +102,55 @@ class ProductModel {
       viewCount: map['viewCount'] ?? 0,
       wishlistCount: map['wishlistCount'] ?? 0,
       isHidden: map['isHidden'] ?? false,
+    );
+  }
+
+  // Create a copy with updated fields
+  ProductModel copyWith({
+    String? id,
+    String? sellerId,
+    String? sellerName,
+    String? sellerPhone,
+    String? title,
+    String? description,
+    double? price,
+    String? category,
+    String? condition,
+    List<String>? imageUrls,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isAvailable,
+    bool? isActive,
+    Map<String, dynamic>? specifications,
+    String? location,
+    double? latitude,
+    double? longitude,
+    int? viewCount,
+    int? wishlistCount,
+    bool? isHidden,
+  }) {
+    return ProductModel(
+      id: id ?? this.id,
+      sellerId: sellerId ?? this.sellerId,
+      sellerName: sellerName ?? this.sellerName,
+      sellerPhone: sellerPhone ?? this.sellerPhone,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      price: price ?? this.price,
+      category: category ?? this.category,
+      condition: condition ?? this.condition,
+      imageUrls: imageUrls ?? this.imageUrls,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isAvailable: isAvailable ?? this.isAvailable,
+      isActive: isActive ?? this.isActive,
+      specifications: specifications ?? this.specifications,
+      location: location ?? this.location,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      viewCount: viewCount ?? this.viewCount,
+      wishlistCount: wishlistCount ?? this.wishlistCount,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 
