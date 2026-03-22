@@ -1,0 +1,176 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
+
+//  relative imports
+import 'firebase_options.dart';
+import 'screens/home_screen.dart';
+import 'theme_provider.dart';
+import 'providers/cart_provider.dart';
+import 'providers/auth_provider.dart';
+import 'providers/product_provider.dart';
+import 'providers/wishlist_provider.dart';
+import 'providers/donation_provider.dart';
+import 'providers/order_provider.dart';
+import 'providers/chat_provider.dart';
+import 'providers/announcement_provider.dart';
+import 'home/role_router.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase with options
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+        ),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => WishlistProvider()),
+        ChangeNotifierProvider(create: (_) => DonationProvider()),
+        ChangeNotifierProvider(create: (_) => OrderProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => AnnouncementProvider()),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
+        ),
+      ],
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    return MaterialApp(
+      title: 'KindCart',
+      debugShowCheckedModeBanner: false,
+
+      // Using themeMode to switch between light/dark
+      themeMode: themeProvider.themeMode,
+
+      //  LIGHT THEME
+      theme: ThemeData(
+        useMaterial3: true,
+
+        // Color scheme for light mode
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+          brightness: Brightness.light,
+        ),
+
+        // App bar theme - light mode
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
+          centerTitle: false,
+        ),
+
+        // Bottom navigation theme - light mode
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.green,
+          unselectedItemColor: Colors.grey,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          type: BottomNavigationBarType.fixed,
+        ),
+
+        // Elevated button theme - light mode
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+
+        // Text theme - light mode
+        textTheme: const TextTheme(
+          displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          displayMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          bodyLarge: TextStyle(fontSize: 16),
+          bodyMedium: TextStyle(fontSize: 14),
+        ),
+      ),
+
+      //  DARK THEME
+      darkTheme: ThemeData(
+        useMaterial3: true,
+
+        // Color scheme for dark mode
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+          brightness: Brightness.dark,
+        ),
+
+        // App bar theme - dark mode
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.grey[900],
+          foregroundColor: Colors.white,
+          elevation: 1,
+          centerTitle: false,
+        ),
+
+        // Bottom navigation theme - dark mode
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.grey[900],
+          selectedItemColor: Colors.green[300],
+          unselectedItemColor: Colors.grey[500],
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          type: BottomNavigationBarType.fixed,
+        ),
+
+        // Elevated button theme - dark mode
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[700],
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+
+        // Text theme - dark mode (with adjusted colors)
+        textTheme: TextTheme(
+          displayLarge:
+              const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          displayMedium:
+              const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          titleLarge:
+              const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          bodyLarge: TextStyle(fontSize: 16, color: Colors.grey[300]),
+          bodyMedium: TextStyle(fontSize: 14, color: Colors.grey[400]),
+        ),
+
+        // Additional dark mode specific settings
+        scaffoldBackgroundColor: Colors.grey[900],
+        cardColor: Colors.grey[850],
+        dividerColor: Colors.grey[800],
+      ),
+
+      home: const RoleRouter(),
+    );
+  }
+}
