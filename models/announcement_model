@@ -1,0 +1,48 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class Announcement {
+  final String id;
+  final String title;
+  final String message;
+  final DateTime createdAt;
+  final String adminId;
+  final String adminName;
+  final List<String> targetRoles;
+  List<String> isReadBy;
+
+  Announcement({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.createdAt,
+    required this.adminId,
+    required this.adminName,
+    required this.targetRoles,
+    required this.isReadBy,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'message': message,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'adminId': adminId,
+      'adminName': adminName,
+      'targetRoles': targetRoles,
+      'isReadBy': isReadBy,
+    };
+  }
+
+  factory Announcement.fromMap(String id, Map<String, dynamic> map) {
+    return Announcement(
+      id: id,
+      title: map['title'] ?? '',
+      message: map['message'] ?? '',
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      adminId: map['adminId'] ?? '',
+      adminName: map['adminName'] ?? 'Admin',
+      targetRoles: List<String>.from(map['targetRoles'] ?? ['all']),
+      isReadBy: List<String>.from(map['isReadBy'] ?? []),
+    );
+  }
+}
