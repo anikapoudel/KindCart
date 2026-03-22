@@ -1,0 +1,178 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/announcement_model.dart';
+
+class AnnouncementProvider extends ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  List<Announcement> _announcements = [];
+
+  List<Announcement> get announcements => _announcements;
+
+  bool _isLoading = false;
+
+  bool get isLoading => _isLoading;
+
+  int get unreadCount {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return 0;
+
+    return _announcements.where((announcement) {
+      // Check if user hasn't read this announcement
+      return !announcement.isReadBy.contains(userId);
+    }).length;
+  }
+
+  // Load announcements for current user
+  Future<void> loadAnnouncements() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    final userRole = userDoc.data()?['role'] ?? 'buyer';
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('announcements')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      _announcements = querySnapshot.docs
+          .map((doc) => Announcement.fromMap(doc.id, doc.data()))
+          .where((announcement) {
+        // Filter announcements based on target roles
+        return announcement.targetRoles.contains('all') ||
+            announcement.targetRoles.contains(userRole.toLowerCase());
+      }).toList();
+    } catch (e) {
+      debugPrint('Error loading announcements: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Mark announcement as read
+  Future<void> markAsRead(String announcementId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      await _firestore.collection('announcements').doc(announcementId).update({
+        'isReadBy': FieldValue.arrayUnion([userId])
+      });
+
+      // Update local state
+      final index = _announcements.indexWhere((a) => a.id == announcementId);
+      if (index != -1) {
+        // Add userId to isReadBy list if not already present
+        if (!_announcements[index].isReadBy.contains(userId)) {
+          _announcements[index].isReadBy.add(userId);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error marking as read: $e');
+    }
+  }
+
+  // Mark all as read
+  Future<void> markAllAsRead() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    final batch = _firestore.batch();
+
+    for (final announcement in _announcements) {
+      if (!announcement.isReadBy.contains(userId)) {
+        final docRef =
+            _firestore.collection('announcements').doc(announcement.id);
+        batch.update(docRef, {
+          'isReadBy': FieldValue.arrayUnion([userId])
+        });
+      }
+    }
+
+    await batch.commit();
+
+    // Update local state
+    for (final announcement in _announcements) {
+      if (!announcement.isReadBy.contains(userId)) {
+        announcement.isReadBy.add(userId);
+      }
+    }
+    notifyListeners();
+  }
+
+  // Send announcement
+// Update sendAnnouncement method
+  Future<bool> sendAnnouncement({
+    required String title,
+    required String message,
+    required List<String> targetRoles,
+    required String adminId,
+    required String adminName,
+  }) async {
+    try {
+      print('📤 Attempting to send announcement...');
+      print('  - Title: $title');
+      print('  - Admin ID: $adminId');
+      print('  - Admin Name: $adminName');
+      print('  - Target Roles: $targetRoles');
+
+      final announcement = Announcement(
+        id: '',
+        title: title,
+        message: message,
+        createdAt: DateTime.now(),
+        adminId: adminId,
+        adminName: adminName,
+        targetRoles: targetRoles,
+        isReadBy: [],
+      );
+
+      final docRef = await _firestore
+          .collection('announcements')
+          .add(announcement.toMap());
+      print('✅ Announcement sent! ID: ${docRef.id}');
+      return true;
+    } catch (e) {
+      print('❌ Detailed error: $e');
+      print('❌ Error type: ${e.runtimeType}');
+
+      if (e.toString().contains('permission-denied')) {
+        print('🔒 This is a permissions issue. Check Firestore rules.');
+      } else if (e.toString().contains('not-found')) {
+        print(
+            '📁 Collection might not exist. Create "announcements" collection first.');
+      }
+
+      return false;
+    }
+  }
+
+  Future<void> _sendNotifications(
+      List<String> targetRoles, String title, String message) async {
+    debugPrint('Sending notifications to: $targetRoles');
+    debugPrint('Title: $title');
+    debugPrint('Message: $message');
+  }
+
+  // Delete announcement
+  Future<bool> deleteAnnouncement(String announcementId) async {
+    try {
+      await _firestore.collection('announcements').doc(announcementId).delete();
+      _announcements.removeWhere((a) => a.id == announcementId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting announcement: $e');
+      return false;
+    }
+  }
+}
