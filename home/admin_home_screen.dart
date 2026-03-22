@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../providers/auth_provider.dart';
+import '../providers/announcement_provider.dart';
 import '../theme_provider.dart';
 import '../admin/approval_screen.dart';
 import '../admin/user_management_screen.dart';
@@ -698,64 +699,220 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
   }
 
+  //  Functional announcement dialog with role selection
   void _showAnnouncementDialog() {
     final titleController = TextEditingController();
     final messageController = TextEditingController();
+    List<String> selectedRoles = ['all']; // Default to all users
+    bool isSending = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send Announcement'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Send Announcement'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        border: OutlineInputBorder(),
+                        hintText: 'e.g., New Feature Update',
+                      ),
+                      enabled: !isSending,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: messageController,
+                      decoration: const InputDecoration(
+                        labelText: 'Message',
+                        border: OutlineInputBorder(),
+                        hintText: 'Enter your announcement here...',
+                      ),
+                      maxLines: 3,
+                      enabled: !isSending,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Send to:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    // Role selection chips
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        FilterChip(
+                          label: const Text('All Users'),
+                          selected: selectedRoles.contains('all'),
+                          onSelected: isSending
+                              ? null
+                              : (selected) {
+                                  setDialogState(() {
+                                    if (selected) {
+                                      selectedRoles = ['all'];
+                                    } else {
+                                      selectedRoles.remove('all');
+                                      if (selectedRoles.isEmpty) {
+                                        selectedRoles = ['all'];
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                        FilterChip(
+                          label: const Text('Buyers'),
+                          selected: selectedRoles.contains('buyer'),
+                          onSelected: isSending
+                              ? null
+                              : (selected) {
+                                  setDialogState(() {
+                                    if (selected) {
+                                      selectedRoles.remove('all');
+                                      selectedRoles.add('buyer');
+                                    } else {
+                                      selectedRoles.remove('buyer');
+                                      if (selectedRoles.isEmpty) {
+                                        selectedRoles = ['all'];
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                        FilterChip(
+                          label: const Text('Sellers'),
+                          selected: selectedRoles.contains('seller'),
+                          onSelected: isSending
+                              ? null
+                              : (selected) {
+                                  setDialogState(() {
+                                    if (selected) {
+                                      selectedRoles.remove('all');
+                                      selectedRoles.add('seller');
+                                    } else {
+                                      selectedRoles.remove('seller');
+                                      if (selectedRoles.isEmpty) {
+                                        selectedRoles = ['all'];
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                        FilterChip(
+                          label: const Text('Donors'),
+                          selected: selectedRoles.contains('donor'),
+                          onSelected: isSending
+                              ? null
+                              : (selected) {
+                                  setDialogState(() {
+                                    if (selected) {
+                                      selectedRoles.remove('all');
+                                      selectedRoles.add('donor');
+                                    } else {
+                                      selectedRoles.remove('donor');
+                                      if (selectedRoles.isEmpty) {
+                                        selectedRoles = ['all'];
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                        FilterChip(
+                          label: const Text('Admins'),
+                          selected: selectedRoles.contains('admin'),
+                          onSelected: isSending
+                              ? null
+                              : (selected) {
+                                  setDialogState(() {
+                                    if (selected) {
+                                      selectedRoles.remove('all');
+                                      selectedRoles.add('admin');
+                                    } else {
+                                      selectedRoles.remove('admin');
+                                      if (selectedRoles.isEmpty) {
+                                        selectedRoles = ['all'];
+                                      }
+                                    }
+                                  });
+                                },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: messageController,
-                decoration: const InputDecoration(
-                  labelText: 'Message',
-                  border: OutlineInputBorder(),
+              actions: [
+                TextButton(
+                  onPressed: isSending ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleController.text.isNotEmpty &&
-                  messageController.text.isNotEmpty) {
-                // TODO: Implement actual announcement sending
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Announcement sent successfully'),
-                    backgroundColor: Colors.green,
+                ElevatedButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                          if (titleController.text.isNotEmpty &&
+                              messageController.text.isNotEmpty) {
+                            setDialogState(() => isSending = true);
+
+                            final authProvider = Provider.of<AuthProvider>(
+                              context,
+                              listen: false,
+                            );
+
+                            final announcementProvider =
+                                Provider.of<AnnouncementProvider>(
+                              context,
+                              listen: false,
+                            );
+
+                            final success =
+                                await announcementProvider.sendAnnouncement(
+                              title: titleController.text,
+                              message: messageController.text,
+                              targetRoles: selectedRoles,
+                              adminId: authProvider.user!.uid,
+                              adminName:
+                                  authProvider.userData?['name'] ?? 'Admin',
+                            );
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    success
+                                        ? 'Announcement sent successfully!'
+                                        : 'Failed to send announcement',
+                                  ),
+                                  backgroundColor:
+                                      success ? Colors.green : Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
                   ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
+                  child: isSending
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Send'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
