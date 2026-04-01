@@ -1,5 +1,7 @@
-// lib/screens/chat_screen.dart
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -10,13 +12,111 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final List<Map<String, dynamic>> _messages = [
-    {
+  bool _isLoading = false;
+  String? _sessionId;
+  final List<Map<String, dynamic>> _messages = [];
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChat();
+  }
+
+  void _initializeChat() {
+    final user = FirebaseAuth.instance.currentUser;
+    _sessionId = user?.uid ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+    //  welcome message
+    _messages.add({
       'isUser': false,
-      'message': 'Hello! I\'m your KindCart assistant. How can I help you today?',
-      'time': '10:00 AM',
-    },
-  ];
+      'message':
+          'Hello! I\'m your KindCart assistant. How can I help you today?',
+    });
+  }
+
+  Future<String?> _sendToDialogflow(String message) async {
+    try {
+      final url = Uri.parse(
+        'https://us-central1-kindcart-a409d.cloudfunctions.net/dialogflowChat',
+      );
+
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'message': message,
+              'sessionId': _sessionId,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Dialogflow reply: ${data['reply']}');
+        print('Dialogflow intent: ${data['intent']}');
+        return data['reply'] as String?;
+      } else {
+        print('HTTP error ${response.statusCode}: ${response.body}');
+        return 'Sorry, I could not process your request.';
+      }
+    } catch (e) {
+      print('Error sending to Dialogflow: $e');
+      return 'Something went wrong. Please try again.';
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _isLoading) return;
+
+    setState(() {
+      _messages.add({
+        'isUser': true,
+        'message': text,
+      });
+      _isLoading = true;
+    });
+
+    _messageController.clear();
+    _scrollToBottom();
+
+    final reply = await _sendToDialogflow(text);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _messages.add({
+          'isUser': false,
+          'message': reply ?? 'I couldn\'t process your request.',
+        });
+      });
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _clearChat() {
+    setState(() {
+      _messages.clear();
+      _messages.add({
+        'isUser': false,
+        'message': 'Chat cleared! How can I help you?',
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +129,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _clearChat,
+            tooltip: 'Clear chat',
           ),
         ],
       ),
@@ -42,10 +143,11 @@ class _ChatScreenState extends State<ChatScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildQuickAction('Donate Items'),
-                  _buildQuickAction('How to sell'),
+                  _buildQuickAction('How to sell?'),
+                  _buildQuickAction('How to buy?'),
                   _buildQuickAction('Shipping info'),
-                  _buildQuickAction('Account help'),
+                  _buildQuickAction('Donations'),
+                  _buildQuickAction('Account Help'),
                 ],
               ),
             ),
@@ -54,20 +156,23 @@ class _ChatScreenState extends State<ChatScreen> {
           // Messages
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
+              itemCount: _messages.length + (_isLoading ? 1 : 0),
               itemBuilder: (context, index) {
+                if (_isLoading && index == _messages.length) {
+                  return _buildTypingIndicator();
+                }
                 final message = _messages[index];
                 return _buildMessageBubble(
                   message['message'],
                   message['isUser'],
-                  message['time'],
                 );
               },
             ),
           ),
 
-          // Input Field
+          // Input
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -107,6 +212,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
                     onPressed: _sendMessage,
+                    tooltip: 'Send message',
                   ),
                 ),
               ],
@@ -131,7 +237,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(String message, bool isUser, String time) {
+  Widget _buildMessageBubble(String message, bool isUser) {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -149,75 +255,37 @@ class _ChatScreenState extends State<ChatScreen> {
             bottomRight: Radius.circular(isUser ? 4 : 16),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message,
-              style: TextStyle(
-                color: isUser ? Colors.white : Colors.black,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: 10,
-                color: isUser ? Colors.white70 : Colors.grey,
-              ),
-            ),
-          ],
+        child: Text(
+          message,
+          style: TextStyle(
+            color: isUser ? Colors.white : Colors.black,
+            fontSize: 14,
+          ),
         ),
       ),
     );
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add({
-        'isUser': true,
-        'message': _messageController.text,
-        'time': 'Just now',
-      });
-
-      // Simulate AI response
-      Future.delayed(const Duration(seconds: 1), () {
-        setState(() {
-          _messages.add({
-            'isUser': false,
-            'message': _getAIResponse(_messageController.text),
-            'time': 'Just now',
-          });
-        });
-      });
-    });
-
-    _messageController.clear();
-  }
-
-  String _getAIResponse(String query) {
-    // Simple response logic - will be replaced with actual AI
-    if (query.toLowerCase().contains('donate')) {
-      return 'To donate items, go to the Donate section and click "Start New Donation". You can list clothing, books, electronics, and more!';
-    } else if (query.toLowerCase().contains('sell')) {
-      return 'To sell items, tap on the + button and select "Sell Item". Add photos, description, and price to list your item.';
-    } else if (query.toLowerCase().contains('ship')) {
-      return 'Shipping options depend on the seller. Some offer shipping, others prefer local pickup. Check the item details for shipping info.';
-    } else {
-      return 'I can help you with donations, selling items, shipping info, account settings, and more. What would you like to know?';
-    }
-  }
-
-  void _clearChat() {
-    setState(() {
-      _messages.clear();
-      _messages.add({
-        'isUser': false,
-        'message': 'Chat cleared! How can I help you?',
-        'time': 'Just now',
-      });
-    });
+  Widget _buildTypingIndicator() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: const Text(
+          'Typing...',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ),
+    );
   }
 }
