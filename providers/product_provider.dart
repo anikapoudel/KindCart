@@ -32,7 +32,7 @@ class ProductProvider extends ChangeNotifier {
   double _maxPrice = 100000;
   bool _sortByNewest = true;
 
-  // Add sort by price high to low
+  // sort by price high to low
   bool _sortByPriceHigh = false;
 
   // Getters
@@ -152,7 +152,7 @@ class ProductProvider extends ChangeNotifier {
   Future<void> loadUserProducts(String sellerId) async {
     debugPrint('📦 Loading products for seller: $sellerId');
 
-    // Use Future.microtask to avoid setState during build
+    // Future.microtask to avoid setState during build
     await Future.microtask(() async {
       _setLoading(true);
       _clearError();
@@ -229,6 +229,7 @@ class ProductProvider extends ChangeNotifier {
     String? location,
     required String sellerId,
     required String sellerName,
+    String? sellerPhone,
   }) async {
     _setLoading(true);
     _clearError();
@@ -294,6 +295,7 @@ class ProductProvider extends ChangeNotifier {
       final productData = {
         'sellerId': sellerId,
         'sellerName': sellerName,
+        'sellerPhone': sellerPhone ?? '',
         'title': title,
         'description': description,
         'price': price,
@@ -364,7 +366,7 @@ class ProductProvider extends ChangeNotifier {
 
       debugPrint('📦 Update data: $updates');
 
-      // First, verify the product exists
+      //  verifying if the product exists
       final productDoc =
           await _firestore.collection('products').doc(productId).get();
       if (!productDoc.exists) {
@@ -374,10 +376,10 @@ class ProductProvider extends ChangeNotifier {
         return false;
       }
 
-      // Check if user is the owner
+      // Checking if user is the owner
       final productData = productDoc.data();
 
-      // Get current user ID safely
+      // Getting current user ID safely
       String? currentUserId;
       try {
         final authProvider = Provider.of<AuthProvider>(
@@ -395,11 +397,11 @@ class ProductProvider extends ChangeNotifier {
         return false;
       }
 
-      // Perform the update
+      // Performing the update
       await _firestore.collection('products').doc(productId).update(updates);
       debugPrint('✅ Product updated successfully in Firestore: $productId');
 
-      // Update local lists
+      // Updating local lists
       await _refreshLocalProduct(productId);
 
       _safeNotifyListeners();
