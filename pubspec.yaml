@@ -35,7 +35,7 @@ dependencies:
   cloud_firestore: ^4.17.0
   google_sign_in: ^6.1.5
   flutter_dotenv: ^5.1.0  # For environment variables
-
+  cloud_functions: ^4.7.6
 
 
 
@@ -43,6 +43,8 @@ dependencies:
   shared_preferences: ^2.2.2
   image_picker: ^1.0.4  # For image picking
   firebase_storage: ^11.6.0  # For storing images
+  intl: ^0.18.1
+
 
 
   url_launcher: ^6.2.5
