@@ -4,7 +4,7 @@ class ProductModel {
   final String id;
   final String sellerId;
   final String sellerName;
-  final String sellerPhone;
+  final String? sellerPhone;
   final String title;
   final String description;
   final double price;
@@ -32,7 +32,6 @@ class ProductModel {
     required this.id,
     required this.sellerId,
     required this.sellerName,
-    required this.sellerPhone,
     required this.title,
     required this.description,
     required this.price,
@@ -41,6 +40,7 @@ class ProductModel {
     required this.imageUrls,
     required this.createdAt,
     this.updatedAt,
+    this.sellerPhone,
     this.isAvailable = true,
     this.isActive = true,
     this.specifications,
@@ -105,7 +105,7 @@ class ProductModel {
     );
   }
 
-  // Create a copy with updated fields
+  //  a copy with updated fields
   ProductModel copyWith({
     String? id,
     String? sellerId,
