@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/chat_model.dart';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 
 class UserChatScreen extends StatefulWidget {
   final String chatId;
@@ -28,6 +30,7 @@ class UserChatScreen extends StatefulWidget {
 class _UserChatScreenState extends State<UserChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _isSendingImage = false;
 
   @override
   void initState() {
@@ -71,7 +74,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
         content: content,
       );
 
-      // Scroll to bottom
       if (_scrollController.hasClients) {
         await Future.delayed(const Duration(milliseconds: 100));
         _scrollController.animateTo(
@@ -89,8 +91,63 @@ class _UserChatScreenState extends State<UserChatScreen> {
           backgroundColor: Colors.red,
         ),
       );
-      // Restore the message text
       _messageController.text = content;
+    }
+  }
+
+  Future<void> _sendImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+      maxWidth: 1200,
+    );
+
+    if (pickedFile == null) return;
+
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    final senderId = authProvider.user?.uid;
+    final senderName = authProvider.userData?['name'] ??
+        authProvider.user?.displayName ??
+        'User';
+
+    if (senderId == null) return;
+
+    setState(() => _isSendingImage = true);
+
+    try {
+      // readAsBytes() for cross-platform
+      final imageBytes = await pickedFile.readAsBytes();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$senderId.jpg';
+
+      await chatProvider.sendImageMessage(
+        chatId: widget.chatId,
+        senderId: senderId,
+        senderName: senderName,
+        imageBytes: imageBytes,
+        fileName: fileName,
+      );
+
+      if (_scrollController.hasClients) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send image: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingImage = false);
     }
   }
 
@@ -116,7 +173,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
 
     if (confirm == true) {
       try {
-        // Update product
         await FirebaseFirestore.instance
             .collection('products')
             .doc(widget.productId)
@@ -126,7 +182,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
           'soldDate': FieldValue.serverTimestamp(),
         });
 
-        // Send system message
         final chatProvider = Provider.of<ChatProvider>(context, listen: false);
         await chatProvider.sendMessage(
           chatId: widget.chatId,
@@ -135,6 +190,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           content: '✅ Item marked as sold',
         );
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Item marked as sold'),
@@ -142,6 +198,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           ),
         );
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
@@ -150,6 +207,41 @@ class _UserChatScreenState extends State<UserChatScreen> {
         );
       }
     }
+  }
+
+  void _viewFullImage(String imageUrl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            title: const Text('Image'),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                },
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.broken_image,
+                  color: Colors.white,
+                  size: 64,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -202,7 +294,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
 
                 final messages = snapshot.data!;
 
-                // Scroll to bottom on new messages
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
                     _scrollController
@@ -230,7 +321,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
             ),
           ),
 
-          // Order Info Bar (if order exists)
+          // Order Info Bar
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('chats')
@@ -270,9 +361,33 @@ class _UserChatScreenState extends State<UserChatScreen> {
             },
           ),
 
+          // Image uploading indicator
+          if (_isSendingImage)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.green.shade50,
+              child: const Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.green,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'Sending image...',
+                    style: TextStyle(color: Colors.green, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+
           // Message Input
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -285,6 +400,13 @@ class _UserChatScreenState extends State<UserChatScreen> {
             ),
             child: Row(
               children: [
+                // Image picker button
+                IconButton(
+                  icon: const Icon(Icons.image_outlined, color: Colors.green),
+                  onPressed: _isSendingImage ? null : _sendImage,
+                  tooltip: 'Send image',
+                ),
+                // Text field
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -292,6 +414,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                       hintText: 'Type a message...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
                       ),
                       filled: true,
                       fillColor: Colors.grey[100],
@@ -304,7 +427,8 @@ class _UserChatScreenState extends State<UserChatScreen> {
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                // Send button
                 CircleAvatar(
                   backgroundColor: Colors.green,
                   child: IconButton(
@@ -321,11 +445,15 @@ class _UserChatScreenState extends State<UserChatScreen> {
   }
 
   Widget _buildMessageBubble(MessageModel message, bool isMe) {
+    final isImage = message.type == MessageType.image;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: isImage
+            ? const EdgeInsets.all(4)
+            : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isMe ? Colors.green : Colors.grey[200],
           borderRadius: BorderRadius.circular(20).copyWith(
@@ -341,7 +469,11 @@ class _UserChatScreenState extends State<UserChatScreen> {
           children: [
             if (!isMe)
               Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: EdgeInsets.only(
+                  bottom: 4,
+                  left: isImage ? 8 : 0,
+                  top: isImage ? 6 : 0,
+                ),
                 child: Text(
                   message.senderName,
                   style: const TextStyle(
@@ -351,18 +483,71 @@ class _UserChatScreenState extends State<UserChatScreen> {
                   ),
                 ),
               ),
-            Text(
-              message.content,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black,
+
+            // Image or text content
+            if (isImage)
+              GestureDetector(
+                onTap: () => _viewFullImage(message.content),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    message.content,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return Container(
+                        width: 200,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: progress.expectedTotalBytes != null
+                                ? progress.cumulativeBytesLoaded /
+                                    progress.expectedTotalBytes!
+                                : null,
+                            color: Colors.green,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 200,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.broken_image,
+                            color: Colors.grey, size: 40),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Text(
+                message.content,
+                style: TextStyle(
+                  color: isMe ? Colors.white : Colors.black,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _formatTime(message.timestamp),
-              style: TextStyle(
-                fontSize: 10,
-                color: isMe ? Colors.white70 : Colors.grey,
+
+            // Timestamp
+            Padding(
+              padding: isImage
+                  ? const EdgeInsets.only(left: 8, right: 8, bottom: 4, top: 4)
+                  : const EdgeInsets.only(top: 2),
+              child: Text(
+                _formatTime(message.timestamp),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isMe ? Colors.white70 : Colors.grey,
+                ),
               ),
             ),
           ],
