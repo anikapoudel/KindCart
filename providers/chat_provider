@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_model.dart';
+import 'dart:typed_data';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ChatProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -16,7 +18,6 @@ class ChatProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   // GENERATE CHAT ID
-
   String generateChatId(String userId1, String userId2, String productId) {
     final ids = [userId1, userId2]..sort();
     return '${ids[0]}_${ids[1]}_$productId';
@@ -104,7 +105,7 @@ class ChatProvider extends ChangeNotifier {
 
   // CREATE OR GET CHAT
   Future<String> getOrCreateChat({
-    String? chatId, // Optional: if you want to provide a specific ID
+    String? chatId,
     required String buyerId,
     required String buyerName,
     required String sellerId,
@@ -166,6 +167,71 @@ class ChatProvider extends ChangeNotifier {
       return newChatId;
     } catch (e) {
       debugPrint('❌ Error in getOrCreateChat: $e');
+      rethrow;
+    }
+  }
+
+  // SEND IMAGE MESSAGE (web + mobile compatible)
+  Future<void> sendImageMessage({
+    required String chatId,
+    required String senderId,
+    required String senderName,
+    required Uint8List imageBytes,
+    required String fileName,
+  }) async {
+    try {
+      final chatRef = _firestore.collection('chats').doc(chatId);
+      final chatDoc = await chatRef.get();
+
+      if (!chatDoc.exists) {
+        throw Exception('Chat not found. Please restart the conversation.');
+      }
+
+      // Upload image bytes (works on web AND mobile)
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('chat_images')
+          .child(chatId)
+          .child(fileName);
+
+      final uploadTask = await storageRef.putData(
+        imageBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final imageUrl = await uploadTask.ref.getDownloadURL();
+
+      final chatData = chatDoc.data()!;
+      final isBuyer = chatData['buyerId'] == senderId;
+      final now = Timestamp.now();
+
+      final messageRef = chatRef.collection('messages').doc();
+      await messageRef.set({
+        'id': messageRef.id,
+        'senderId': senderId,
+        'senderName': senderName,
+        'content': imageUrl,
+        'timestamp': now,
+        'isRead': false,
+        'type': 1,
+      });
+
+      final Map<String, dynamic> updates = {
+        'lastMessage': '📷 Image',
+        'lastMessageTime': now,
+        'lastMessageSenderId': senderId,
+        'lastMessageIsFromBuyer': isBuyer,
+      };
+
+      if (isBuyer) {
+        updates['unreadCountSeller'] = (chatData['unreadCountSeller'] ?? 0) + 1;
+      } else {
+        updates['unreadCountBuyer'] = (chatData['unreadCountBuyer'] ?? 0) + 1;
+      }
+
+      await chatRef.update(updates);
+      debugPrint('✅ Image message sent to chat: $chatId');
+    } catch (e) {
+      debugPrint('❌ Error sending image: $e');
       rethrow;
     }
   }
