@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../screens/about_screen.dart';
 import '../screens/shop_screen.dart';
 import '../screens/cart_screen.dart';
+import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:gif_view/gif_view.dart';
 import '../screens/chat_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/wishlist_screen.dart';
@@ -13,6 +16,8 @@ import '../../providers/cart_provider.dart';
 import '../../providers/wishlist_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/product_provider.dart';
+import '../../providers/chat_provider.dart';
+import '../../models/chat_model.dart';
 import '../../theme_provider.dart';
 import '../../services/navigation_helper.dart';
 import '../../models/product_model.dart';
@@ -28,102 +33,74 @@ class BuyerHomeScreen extends StatefulWidget {
 class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
-  late PageController _pageController;
-  int _currentSlide = 0;
 
-  final List<Map<String, dynamic>> _slides = [
-    {
-      'title': '🛍️ Sustainable Fashion',
-      'subtitle': 'Discover pre-loved treasures at amazing prices',
-      'image': '👗',
-      'color': const Color(0xFF7B2D8B),
-      'buttonText': 'Shop Now',
-      'type': 'shop',
-    },
-    {
-      'title': '✨ Quality Thrift Items',
-      'subtitle': 'Every item tells a story - find yours today',
-      'image': '🌟',
-      'color': const Color(0xFF00695C),
-      'buttonText': 'Explore',
-      'type': 'shop',
-    },
-    {
-      'title': '💰 Save Big, Live Green',
-      'subtitle': 'Good items at good price',
-      'image': '💚',
-      'color': const Color(0xFF2E7D32),
-      'buttonText': 'Start Shopping',
-      'type': 'shop',
-    },
-  ];
+  final GlobalKey _fabKey = GlobalKey();
+  bool _isChatOpen = false;
 
-  final List<Map<String, dynamic>> impactStats = [
-    {
-      'value': 'Join Us',
-      'icon': Icons.people_outline,
-      'color': Colors.green,
-      'label': 'Growing Community'
-    },
-    {
-      'value': 'Be First',
-      'icon': Icons.eco_outlined,
-      'color': Colors.blue,
-      'label': 'Start the Movement'
-    },
-    {
-      'value': 'You Can',
-      'icon': Icons.favorite_outline,
-      'color': Colors.orange,
-      'label': 'Make a Difference'
-    },
-    {
-      'value': 'Start Now',
-      'icon': Icons.rocket_launch_outlined,
-      'color': Colors.purple,
-      'label': 'First Donation'
-    },
-  ];
+  Stream<List<ChatModel>>? _chatsStream;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProductProvider>(context, listen: false).loadProducts();
-      _startAutoSlide();
+      // Boost image cache
+      PaintingBinding.instance.imageCache.maximumSize = 100;
+      PaintingBinding.instance.imageCache.maximumSizeBytes =
+          100 << 20; // 100 MB
+
+      // Preload the GIF with frame-based caching
+      final ImageProvider provider = const AssetImage('assets/screen1.gif');
+      provider.resolve(createLocalImageConfiguration(context));
+
+      // Initialize chat stream for unread messages count
+      _initChatStream();
     });
   }
 
-  void _startAutoSlide() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) _autoSlide();
-    });
-  }
+  void _initChatStream() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.uid;
 
-  void _autoSlide() async {
-    while (mounted) {
-      await Future.delayed(const Duration(seconds: 3));
-      if (_pageController.hasClients) {
-        int nextPage = _currentSlide + 1;
-        if (nextPage >= _slides.length) nextPage = 0;
-        _pageController.animateToPage(
-          nextPage,
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeInOut,
-        );
-      }
+    if (userId != null && _currentUserId != userId) {
+      _currentUserId = userId;
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      _chatsStream = chatProvider.getUserChatsStream(userId);
     }
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
     super.dispose();
   }
 
-  List<ProductModel> _getFeaturedProducts(List<ProductModel> products) =>
-      products.take(6).toList();
+  //  total unread messages for buyer
+  int _getTotalUnreadCount(List<ChatModel> chats, String userId) {
+    int totalUnread = 0;
+    for (var chat in chats) {
+      // check unreadCountBuyer
+      totalUnread += chat.unreadCountBuyer;
+    }
+    return totalUnread;
+  }
+
+  //  up to 30 featured products (all latest items)
+  List<ProductModel> _getFeaturedProducts(List<ProductModel> products) {
+    // Create a copy and sort by newest first
+    final sortedProducts = List<ProductModel>.from(products);
+    sortedProducts.sort((a, b) {
+      if (a.createdAt != null && b.createdAt != null) {
+        return b.createdAt!.compareTo(a.createdAt!);
+      }
+      return 0;
+    });
+
+    // Returning up to 30 items (or all if less than 30)
+    return sortedProducts.length > 30
+        ? sortedProducts.take(30).toList()
+        : sortedProducts;
+  }
 
   List<ProductModel> _getDonationItems(List<ProductModel> products) =>
       products.where((p) => p.price == 0).take(5).toList();
@@ -137,8 +114,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     final isDark = themeProvider.isDarkMode;
     final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF5F7F5);
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final surfaceColor =
-        isDark ? const Color(0xFF252525) : const Color(0xFFF0F4F0);
+    final screenWidth = MediaQuery.of(context).size.width;
 
     String displayName = 'Buyer';
     if (authProvider.userData != null &&
@@ -153,389 +129,282 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     final featuredProducts = _getFeaturedProducts(productProvider.products);
     final donationItems = _getDonationItems(productProvider.products);
 
+    // Detecting if running on web (using screen width as indicator)
+    final bool isWebLayout = screenWidth > 800;
+
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        shadowColor: Colors.black12,
-        toolbarHeight: 64,
-        title: GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (context) => const AboutScreen())),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.green.withAlpha(80),
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/Logo.png',
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.green.withAlpha(30),
-                        child: Icon(
-                          Icons.eco,
-                          color: isDark ? Colors.green[300] : Colors.green,
-                          size: 24,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'KindCart',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
-                      letterSpacing: 0.5,
-                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  Text(
-                    'Welcome back, $displayName! 👋',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.green[300] : Colors.green[700],
-                    ),
-                  ),
-                ],
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [
+                      const Color(0xFF1A1A2E),
+                      const Color(0xFF1B2F3B),
+                      const Color(0xFF1A1A2E),
+                    ]
+                  : [
+                      const Color(0xFFE8F5E9),
+                      const Color(0xFFF3E5F5),
+                      const Color(0xFFE8F5E9),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : Colors.black.withAlpha(12),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
               ),
             ],
           ),
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      // Logo and Brand Section
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const AboutScreen()),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: isDark
+                                  ? [
+                                      Colors.green.shade300,
+                                      Colors.purple.shade300
+                                    ]
+                                  : [
+                                      Colors.green.shade400,
+                                      Colors.purple.shade400
+                                    ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isDark
+                                        ? Colors.green.shade800
+                                        : Colors.green.shade200)
+                                    .withAlpha(80),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            width: isWebLayout ? 46 : 40,
+                            height: isWebLayout ? 46 : 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(15),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/Logo.png',
+                                width: isWebLayout ? 46 : 40,
+                                height: isWebLayout ? 46 : 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.green.withAlpha(30),
+                                    child: Icon(
+                                      Icons.eco,
+                                      color: isDark
+                                          ? Colors.green[300]
+                                          : Colors.green[700],
+                                      size: isWebLayout ? 26 : 22,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Brand and Welcome Section
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ShaderMask(
+                              shaderCallback: (bounds) => LinearGradient(
+                                colors: isDark
+                                    ? [
+                                        Colors.green.shade300,
+                                        Colors.purple.shade300
+                                      ]
+                                    : [
+                                        const Color(0xFF2E7D32),
+                                        const Color(0xFF7B1FA2)
+                                      ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ).createShader(bounds),
+                              child: Text(
+                                'KindCart',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isWebLayout ? 22 : 19,
+                                  letterSpacing: 0.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Welcome chip
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isDark
+                                      ? [
+                                          Colors.green.shade900.withAlpha(60),
+                                          Colors.purple.shade900.withAlpha(60)
+                                        ]
+                                      : [
+                                          Colors.green.shade50,
+                                          Colors.purple.shade50
+                                        ],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.grey[800]!
+                                      : Colors.grey[200]!,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.waving_hand_rounded,
+                                    size: isWebLayout ? 14 : 12,
+                                    color: isDark
+                                        ? Colors.green[300]
+                                        : Colors.green[600],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      'Welcome back, $displayName',
+                                      style: TextStyle(
+                                        fontSize: isWebLayout ? 11 : 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark
+                                            ? Colors.grey[300]
+                                            : Colors.grey[700],
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '✨',
+                                    style: TextStyle(
+                                        fontSize: isWebLayout ? 12 : 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Action Buttons
+                      if (isWebLayout)
+                        _buildWebActionButtons(
+                            themeProvider, isDark, authProvider)
+                      else
+                        _buildAndroidActionButtons(
+                            themeProvider, isDark, authProvider),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
-        actions: [
-          _AppBarIconButton(
-            icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-            color: isDark ? Colors.amber : Colors.grey[600]!,
-            onTap: () => themeProvider.toggleTheme(),
-            isDark: isDark,
-            tooltip: isDark ? 'Light Mode' : 'Dark Mode',
-          ),
-          _AppBarIconButton(
-            icon: Icons.chat_bubble_outline_rounded,
-            color: isDark ? Colors.white70 : Colors.grey[700]!,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const ChatsListScreen())),
-            isDark: isDark,
-            tooltip: 'Messages',
-          ),
-          _AppBarIconButton(
-            icon: Icons.search_rounded,
-            color: isDark ? Colors.white70 : Colors.grey[700]!,
-            onTap: () => NavigationHelper.goToSearchScreen(context),
-            isDark: isDark,
-            tooltip: 'Search',
-          ),
-          Consumer<WishlistProvider>(
-            builder: (context, wishlistProvider, child) {
-              return _BadgeIconButton(
-                icon: Icons.favorite_border_rounded,
-                badgeCount: wishlistProvider.items.length,
-                badgeColor: Colors.red,
-                iconColor: isDark ? Colors.white70 : Colors.grey[700]!,
-                isDark: isDark,
-                onTap: () => NavigationHelper.goToWishlistScreen(context),
-                tooltip: 'Wishlist',
-              );
-            },
-          ),
-          Consumer<CartProvider>(
-            builder: (context, cartProvider, child) {
-              return _BadgeIconButton(
-                icon: Icons.shopping_bag_outlined,
-                badgeCount: cartProvider.items.length,
-                badgeColor: Colors.green,
-                iconColor: isDark ? Colors.white70 : Colors.grey[700]!,
-                isDark: isDark,
-                onTap: () => NavigationHelper.goToCartScreen(context),
-                tooltip: 'Shopping Cart',
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
       ),
       body: RefreshIndicator(
         color: Colors.green,
-        onRefresh: () => productProvider.loadProducts(),
+        onRefresh: () async {
+          await productProvider.loadProducts();
+          if (_currentUserId != null) {
+            final chatProvider =
+                Provider.of<ChatProvider>(context, listen: false);
+            await chatProvider.loadUserChats(_currentUserId!);
+          }
+        },
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 12),
 
-              // Slideshow
-              SizedBox(
-                height: 230,
-                child: Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) =>
-                          setState(() => _currentSlide = index),
-                      itemCount: _slides.length,
-                      itemBuilder: (context, index) {
-                        final slide = _slides[index];
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                slide['color'] as Color,
-                                (slide['color'] as Color).withAlpha(200),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (slide['color'] as Color).withAlpha(70),
-                                blurRadius: 14,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                right: -10,
-                                bottom: -10,
-                                child: Text(
-                                  slide['image'] as String,
-                                  style: const TextStyle(
-                                      fontSize: 110, color: Colors.white10),
-                                ),
-                              ),
-                              Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 5),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withAlpha(30),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          '✨ KindCart ✨',
-                                          style: TextStyle(
-                                            color: Colors.white.withAlpha(220),
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 1.2,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        slide['title'] as String,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          height: 1.2,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        slide['subtitle'] as String,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.white.withAlpha(210),
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      GestureDetector(
-                                        onTap: () =>
-                                            NavigationHelper.goToShopScreen(
-                                                context),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 22, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(30),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color:
-                                                    Colors.black.withAlpha(30),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 3),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                slide['buttonText'] as String,
-                                                style: TextStyle(
-                                                  color:
-                                                      slide['color'] as Color,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Icon(
-                                                Icons.arrow_forward_rounded,
-                                                size: 16,
-                                                color: slide['color'] as Color,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    // Slide indicator dots
-                    Positioned(
-                      bottom: 12,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            _slides.length,
-                            (index) => AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              width: _currentSlide == index ? 20 : 6,
-                              height: 6,
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(3),
-                                color: _currentSlide == index
-                                    ? Colors.white
-                                    : Colors.white.withAlpha(100),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
               // GIF File Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(15),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      'assets/screen1.gif',
-                      height: 571,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 180,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.green.withAlpha(30),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.error_outline,
-                                    size: 40, color: Colors.grey),
-                                SizedBox(height: 8),
-                                Text(
-                                  'GIF not found',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: _LoopingGif(key: PageStorageKey('home_gif')),
               ),
 
               const SizedBox(height: 24),
 
               // Featured Items
               _SectionHeader(
-                title: 'Featured Items',
+                title: 'Latest Items',
                 actionLabel: 'See All',
                 onAction: () => NavigationHelper.goToShopScreen(context),
               ),
 
               const SizedBox(height: 12),
 
+              //  grid  to show up to 30 items
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    childAspectRatio: 0.62,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    childAspectRatio: isWebLayout ? 0.6 : 0.35,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
                   itemCount:
-                      productProvider.isLoading ? 6 : featuredProducts.length,
+                      productProvider.isLoading ? 30 : featuredProducts.length,
                   itemBuilder: (context, index) {
-                    if (productProvider.isLoading) {
+                    if (productProvider.isLoading && index < 30) {
                       return _buildShimmerCard(isDark);
                     }
                     if (index >= featuredProducts.length) {
@@ -549,7 +418,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
 
               const SizedBox(height: 24),
 
-              //  Free Donations
+              // Free Donations
               if (donationItems.isNotEmpty) ...[
                 _SectionHeader(
                   title: 'Free Donations',
@@ -572,229 +441,376 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                 const SizedBox(height: 24),
               ],
 
-              // Our Impact
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1B5E20), Color(0xFF388E3C)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withAlpha(60),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(25),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.eco_rounded,
-                              color: Colors.white, size: 22),
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Our Impact',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: impactStats.map((stat) {
-                        return Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withAlpha(18),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(stat['icon'] as IconData,
-                                    color: Colors.white, size: 24),
-                                const SizedBox(height: 6),
-                                Text(
-                                  stat['value'] as String,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  stat['label'] as String,
-                                  style: const TextStyle(
-                                      color: Colors.white60, fontSize: 9),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const AboutScreen()),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withAlpha(25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Learn More About Our Mission',
-                              style: TextStyle(
-                                color: Color(0xFF1B5E20),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            SizedBox(width: 6),
-                            Icon(Icons.arrow_forward_rounded,
-                                color: Color(0xFF1B5E20), size: 16),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
+              // Compact Footer -  ON WEB
+              if (isWebLayout) _buildCompactFooter(isDark, context),
             ],
           ),
         ),
       ),
 
-      // Bottom Navigation
-      bottomNavigationBar: Container(
+      // Bottom Navigation - for Android
+      bottomNavigationBar: isWebLayout ? null : _buildAndroidBottomNav(isDark),
+
+      // Floating action button
+      floatingActionButton: Container(
+        key: _fabKey,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF7B2D8B), Color(0xFF9B4D96)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(15),
+              color: const Color(0xFF7B2D8B).withAlpha(80),
               blurRadius: 12,
-              offset: const Offset(0, -2),
+              spreadRadius: 2,
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (index) {
-            setState(() => _selectedIndex = index);
-            switch (index) {
-              case 0:
-                break;
-              case 1:
-                NavigationHelper.goToSearchScreen(context);
-                break;
-              case 2:
-                NavigationHelper.goToCartScreen(context);
-                break;
-              case 3:
-                NavigationHelper.goToWishlistScreen(context);
-                break;
-              case 4:
-                NavigationHelper.goToProfileScreen(context);
-                break;
-            }
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            debugPrint('Help button pressed');
+            ChatScreen.showAnchored(
+              context: context,
+              anchorKey: _fabKey,
+              height: 600.0,
+            );
           },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-          selectedItemColor: Colors.green,
-          unselectedItemColor: isDark ? Colors.grey[600] : Colors.grey[400],
-          selectedLabelStyle:
-              const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-          unselectedLabelStyle: const TextStyle(fontSize: 10),
+          backgroundColor: Colors.transparent,
           elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home_rounded),
-                label: 'Home'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.search_outlined),
-                activeIcon: Icon(Icons.search_rounded),
-                label: 'Search'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.shopping_bag_outlined),
-                activeIcon: Icon(Icons.shopping_bag_rounded),
-                label: 'Cart'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_border_rounded),
-                activeIcon: Icon(Icons.favorite_rounded),
-                label: 'Wishlist'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline_rounded),
-                activeIcon: Icon(Icons.person_rounded),
-                label: 'Profile'),
-          ],
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ChatScreen()),
-        ),
-        backgroundColor: const Color(0xFF7B2D8B),
-        elevation: 4,
-        icon: const Icon(Icons.auto_awesome_rounded,
-            color: Colors.white, size: 20),
-        label: const Text(
-          'AI Help',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          icon: const Icon(Icons.auto_awesome_rounded,
+              color: Colors.white, size: 20),
+          label: const Text(
+            'Help',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     );
   }
 
-  //  Product card
+  //  Footer
+  Widget _buildCompactFooter(bool isDark, BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1A1A2E), const Color(0xFF16213E)]
+              : [const Color(0xFF1B5E20), const Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AboutScreen()),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(20),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(
+                    Icons.menu_book_rounded,
+                    color: Color(0xFF1B5E20),
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Our Mission - About Us',
+                    style: TextStyle(
+                      color: Color(0xFF1B5E20),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Divider
+          Container(
+            width: 80,
+            height: 1,
+            color: Colors.white.withAlpha(80),
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '🌱',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withAlpha(230),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'One purchase at a time',
+                style: TextStyle(
+                  color: Colors.white.withAlpha(230),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Divider
+          Container(
+            width: 80,
+            height: 1,
+            color: Colors.white.withAlpha(80),
+          ),
+          const SizedBox(height: 12),
+
+          // Copyright Info
+          Text(
+            '© ${DateTime.now().year} KindCart',
+            style: TextStyle(
+              color: Colors.white.withAlpha(180),
+              fontSize: 11,
+              fontWeight: FontWeight.w400,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Web buttons
+  Widget _buildWebActionButtons(
+      ThemeProvider themeProvider, bool isDark, AuthProvider authProvider) {
+    final userId = authProvider.user?.uid;
+
+    return StreamBuilder<List<ChatModel>>(
+      stream: userId != null ? _chatsStream : null,
+      builder: (context, snapshot) {
+        int unreadCount = 0;
+
+        if (snapshot.hasData && userId != null) {
+          unreadCount = _getTotalUnreadCount(snapshot.data!, userId);
+        }
+
+        return Row(
+          children: [
+            _ElegantIconButton(
+              icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              onTap: () => themeProvider.toggleTheme(),
+              tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+              isDark: isDark,
+            ),
+            _ElegantIconButton(
+              icon: Icons.search_rounded,
+              onTap: () => NavigationHelper.goToSearchScreen(context),
+              tooltip: 'Search',
+              isDark: isDark,
+            ),
+            _ElegantBadgeButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              badgeCount: unreadCount,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ChatsListScreen()),
+              ),
+              tooltip: 'Messages',
+              isDark: isDark,
+            ),
+            Consumer<WishlistProvider>(
+              builder: (context, wishlistProvider, child) {
+                return _ElegantBadgeButton(
+                  icon: Icons.favorite_border_rounded,
+                  badgeCount: wishlistProvider.items.length,
+                  onTap: () => NavigationHelper.goToWishlistScreen(context),
+                  tooltip: 'Wishlist',
+                  isDark: isDark,
+                );
+              },
+            ),
+            Consumer<CartProvider>(
+              builder: (context, cartProvider, child) {
+                return _ElegantBadgeButton(
+                  icon: Icons.shopping_bag_outlined,
+                  badgeCount: cartProvider.items.length,
+                  onTap: () => NavigationHelper.goToCartScreen(context),
+                  tooltip: 'Shopping Cart',
+                  isDark: isDark,
+                );
+              },
+            ),
+            _ElegantIconButton(
+              icon: Icons.person_outline_rounded,
+              onTap: () => NavigationHelper.goToProfileScreen(context),
+              tooltip: 'Profile',
+              isDark: isDark,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Android-specific action buttons with unread messages count
+  Widget _buildAndroidActionButtons(
+      ThemeProvider themeProvider, bool isDark, AuthProvider authProvider) {
+    final userId = authProvider.user?.uid;
+
+    return StreamBuilder<List<ChatModel>>(
+      stream: userId != null ? _chatsStream : null,
+      builder: (context, snapshot) {
+        int unreadCount = 0;
+
+        if (snapshot.hasData && userId != null) {
+          unreadCount = _getTotalUnreadCount(snapshot.data!, userId);
+        }
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ElegantIconButton(
+              icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              onTap: () => themeProvider.toggleTheme(),
+              tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+              isDark: isDark,
+              iconSize: 18,
+            ),
+            _ElegantIconButton(
+              icon: Icons.search_rounded,
+              onTap: () => NavigationHelper.goToSearchScreen(context),
+              tooltip: 'Search',
+              isDark: isDark,
+              iconSize: 18,
+            ),
+            _ElegantBadgeButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              badgeCount: unreadCount,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const ChatsListScreen()),
+              ),
+              tooltip: 'Messages',
+              isDark: isDark,
+              iconSize: 18,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Android bottom navigation bar
+  Widget _buildAndroidBottomNav(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1A1A1A), const Color(0xFF2D1B2D)]
+              : [Colors.white, const Color(0xFFFFF0F5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(15),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() => _selectedIndex = index);
+          switch (index) {
+            case 0:
+              break;
+            case 1:
+              NavigationHelper.goToCartScreen(context);
+              break;
+            case 2:
+              NavigationHelper.goToWishlistScreen(context);
+              break;
+            case 3:
+              NavigationHelper.goToProfileScreen(context);
+              break;
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: const Color(0xFF7B2D8B),
+        unselectedItemColor: isDark ? Colors.grey[600] : Colors.grey[400],
+        selectedLabelStyle:
+            const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+        unselectedLabelStyle: const TextStyle(fontSize: 10),
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home_rounded),
+              label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_bag_outlined),
+              activeIcon: Icon(Icons.shopping_bag_rounded),
+              label: 'Cart'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.favorite_border_rounded),
+              activeIcon: Icon(Icons.favorite_rounded),
+              label: 'Wishlist'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
+              label: 'Profile'),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductCard(ProductModel product, bool isDark, Color cardColor) {
     return GestureDetector(
       onTap: () {
-        print('Product tapped: ${product.title}'); // Debug print
-        Navigator.pushNamed(context, '/item-detail', arguments: product);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ItemDetailScreen(item: product),
+          ),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
@@ -901,7 +917,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                         Text(
                           product.price == 0
                               ? 'FREE'
-                              : '₹${product.price.toStringAsFixed(0)}',
+                              : 'NPR ${product.price.toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -913,13 +929,30 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                       ],
                     ),
                     const SizedBox(height: 1),
-                    Text(
-                      product.sellerName,
-                      style: TextStyle(
-                          fontSize: 9,
-                          color: isDark ? Colors.grey[500] : Colors.grey[500]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _getConditionColor(product.condition),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Expanded(
+                          child: Text(
+                            product.condition,
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[500]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -931,12 +964,33 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     );
   }
 
+  Color _getConditionColor(String condition) {
+    switch (condition) {
+      case 'Like New':
+        return Colors.green;
+      case 'Excellent':
+        return Colors.teal;
+      case 'Good':
+        return Colors.blue;
+      case 'Fair':
+        return Colors.orange;
+      case 'Needs Repair':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildDonationCard(ProductModel item, bool isDark, Color cardColor) {
     final firstImage = item.imageUrls.isNotEmpty ? item.imageUrls.first : null;
 
     return GestureDetector(
-      onTap: () =>
-          Navigator.pushNamed(context, '/item-detail', arguments: item),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ItemDetailScreen(item: item),
+        ),
+      ),
       child: Container(
         width: 145,
         margin: const EdgeInsets.only(right: 12),
@@ -1108,227 +1162,196 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
   }
 }
 
-// Reusable AppBar icon button with Tooltip
-class _AppBarIconButton extends StatefulWidget {
+// Icon Button
+class _ElegantIconButton extends StatelessWidget {
   final IconData icon;
-  final Color color;
   final VoidCallback onTap;
-  final bool isDark;
   final String tooltip;
+  final bool isDark;
+  final double iconSize;
 
-  const _AppBarIconButton({
+  const _ElegantIconButton({
     required this.icon,
-    required this.color,
     required this.onTap,
-    required this.isDark,
     required this.tooltip,
+    required this.isDark,
+    this.iconSize = 20,
   });
-
-  @override
-  State<_AppBarIconButton> createState() => _AppBarIconButtonState();
-}
-
-class _AppBarIconButtonState extends State<_AppBarIconButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: widget.tooltip,
+      message: tooltip,
       preferBelow: false,
-      decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+                    Colors.grey[800]!.withAlpha(200),
+                    Colors.grey[900]!.withAlpha(200)
+                  ]
+                : [
+                    Colors.white.withAlpha(220),
+                    Colors.grey[50]!.withAlpha(220)
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+            width: 0.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withAlpha(30)
+                  : Colors.grey.withAlpha(20),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: IconButton(
+          padding: const EdgeInsets.all(8),
+          constraints: BoxConstraints(
+            minWidth: iconSize + 14,
+            minHeight: iconSize + 14,
+          ),
+          icon: Icon(
+            icon,
+            color: isDark ? Colors.grey[300] : Colors.grey[700],
+            size: iconSize,
+          ),
+          onPressed: onTap,
+          splashRadius: iconSize + 6,
+          splashColor:
+              isDark ? Colors.white.withAlpha(20) : Colors.green.withAlpha(30),
+          highlightColor: Colors.transparent,
+        ),
       ),
-      textStyle: const TextStyle(
-        color: Colors.white,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
-      child: MouseRegion(
-        onEnter: (_) => _controller.forward(),
-        onExit: (_) => _controller.reverse(),
-        child: AnimatedBuilder(
-          animation: _scaleAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
+    );
+  }
+}
+
+// Elegant Badge Button
+class _ElegantBadgeButton extends StatelessWidget {
+  final IconData icon;
+  final int badgeCount;
+  final VoidCallback onTap;
+  final String tooltip;
+  final bool isDark;
+  final double iconSize;
+
+  const _ElegantBadgeButton({
+    required this.icon,
+    required this.badgeCount,
+    required this.onTap,
+    required this.tooltip,
+    required this.isDark,
+    this.iconSize = 20,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      preferBelow: false,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [
+                        Colors.grey[800]!.withAlpha(200),
+                        Colors.grey[900]!.withAlpha(200)
+                      ]
+                    : [
+                        Colors.white.withAlpha(220),
+                        Colors.grey[50]!.withAlpha(220)
+                      ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withAlpha(30)
+                      : Colors.grey.withAlpha(20),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: IconButton(
+              padding: const EdgeInsets.all(8),
+              constraints: BoxConstraints(
+                minWidth: iconSize + 14,
+                minHeight: iconSize + 14,
+              ),
+              icon: Icon(
+                icon,
+                color: isDark ? Colors.grey[300] : Colors.grey[700],
+                size: iconSize,
+              ),
+              onPressed: onTap,
+              splashRadius: iconSize + 6,
+              splashColor: isDark
+                  ? Colors.white.withAlpha(20)
+                  : Colors.green.withAlpha(30),
+              highlightColor: Colors.transparent,
+            ),
+          ),
+          if (badgeCount > 0)
+            Positioned(
+              right: -2,
+              top: -2,
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
                   gradient: LinearGradient(
-                    colors: [
-                      widget.color.withAlpha(30),
-                      widget.color.withAlpha(60),
-                    ],
+                    colors: isDark
+                        ? [Colors.red[400]!, Colors.red[600]!]
+                        : [Colors.red[500]!, Colors.red[700]!],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                ),
-                child: IconButton(
-                  icon: Icon(widget.icon, color: widget.color, size: 22),
-                  onPressed: widget.onTap,
-                  splashRadius: 22,
-                  splashColor: widget.color.withAlpha(50),
-                  highlightColor: widget.color.withAlpha(30),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// Reusable badge icon button with Tooltip
-class _BadgeIconButton extends StatefulWidget {
-  final IconData icon;
-  final int badgeCount;
-  final Color badgeColor;
-  final Color iconColor;
-  final bool isDark;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  const _BadgeIconButton({
-    required this.icon,
-    required this.badgeCount,
-    required this.badgeColor,
-    required this.iconColor,
-    required this.isDark,
-    required this.onTap,
-    required this.tooltip,
-  });
-
-  @override
-  State<_BadgeIconButton> createState() => _BadgeIconButtonState();
-}
-
-class _BadgeIconButtonState extends State<_BadgeIconButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      preferBelow: false,
-      decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      textStyle: const TextStyle(
-        color: Colors.white,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
-      child: MouseRegion(
-        onEnter: (_) => _controller.forward(),
-        onExit: (_) => _controller.reverse(),
-        child: AnimatedBuilder(
-          animation: _scaleAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          widget.iconColor.withAlpha(30),
-                          widget.iconColor.withAlpha(60),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: IconButton(
-                      icon:
-                          Icon(widget.icon, color: widget.iconColor, size: 22),
-                      onPressed: widget.onTap,
-                      splashRadius: 22,
-                      splashColor: widget.iconColor.withAlpha(50),
-                      highlightColor: widget.iconColor.withAlpha(30),
-                    ),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? Colors.grey[900]! : Colors.white,
+                    width: 1.5,
                   ),
-                  if (widget.badgeCount > 0)
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                            color: widget.badgeColor,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: widget.badgeColor.withAlpha(100),
-                                blurRadius: 4,
-                                spreadRadius: 1,
-                              ),
-                            ]),
-                        constraints:
-                            const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text(
-                          '${widget.badgeCount}',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withAlpha(50),
+                      blurRadius: 4,
+                      spreadRadius: 0,
                     ),
-                ],
+                  ],
+                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-            );
-          },
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -1364,7 +1387,12 @@ class _SectionHeader extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: (iconColor ?? Colors.green).withAlpha(25),
+                    gradient: LinearGradient(
+                      colors: [
+                        (iconColor ?? Colors.green).withAlpha(25),
+                        (iconColor ?? Colors.green).withAlpha(50),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(leadingIcon,
@@ -1385,22 +1413,81 @@ class _SectionHeader extends StatelessWidget {
           TextButton(
             onPressed: onAction,
             style: TextButton.styleFrom(
-              foregroundColor: Colors.green,
+              foregroundColor: const Color(0xFF7B2D8B),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Row(
               children: [
-                Text(actionLabel,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  actionLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(width: 2),
                 const Icon(Icons.chevron_right_rounded, size: 16),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LoopingGif extends StatefulWidget {
+  const _LoopingGif({Key? key}) : super(key: key);
+
+  @override
+  State<_LoopingGif> createState() => _LoopingGifState();
+}
+
+class _LoopingGifState extends State<_LoopingGif>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+
+    double gifHeight =
+        screenWidth < 400 ? 250 : (screenWidth < 600 ? 300 : 400);
+
+    if (isWebLayout) {
+      gifHeight = 500;
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: isWebLayout ? EdgeInsets.zero : null,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(isWebLayout ? 0 : 16),
+        boxShadow: isWebLayout
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withAlpha(15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(isWebLayout ? 0 : 16),
+        child: GifView.asset(
+          'assets/screen1.gif',
+          height: gifHeight,
+          width: double.infinity,
+          fit: isWebLayout ? BoxFit.cover : BoxFit.contain,
+          repeat: ImageRepeat.noRepeat,
+        ),
       ),
     );
   }
