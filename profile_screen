@@ -3,8 +3,12 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/announcement_provider.dart';
+import '../providers/wishlist_provider.dart';
+import '../providers/cart_provider.dart';
 import '../theme_provider.dart';
 import 'auth_screen.dart';
+import 'notifications_screen.dart';
 import '../admin/approval_screen.dart';
 import 'addproduct_screen.dart';
 import 'adddonation_screen.dart';
@@ -13,6 +17,7 @@ import 'my_listings_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
 import 'about_screen.dart';
+import 'chat_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,6 +27,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final GlobalKey _helpSupportKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +36,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadRoleSpecificData();
+        _loadAnnouncements();
+        _loadWishlistAndCart();
       }
     });
   }
@@ -48,6 +57,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await orderProvider.loadBuyerOrders(authProvider.user!.uid);
         debugPrint('✅ Loaded ${orderProvider.buyerOrders.length} orders');
       }
+    }
+  }
+
+  Future<void> _loadAnnouncements() async {
+    final announcementProvider =
+        Provider.of<AnnouncementProvider>(context, listen: false);
+    await announcementProvider.loadAnnouncements();
+  }
+
+  Future<void> _loadWishlistAndCart() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isAuthenticated && authProvider.userRole == 'Buyer') {
+      final wishlistProvider =
+          Provider.of<WishlistProvider>(context, listen: false);
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      final userId = authProvider.user!.uid;
+
+      await wishlistProvider.loadWishlist(userId);
+      await cartProvider.loadCart(userId);
     }
   }
 
@@ -97,17 +125,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // Refresh both auth and role-specific data
                 await authProvider.refreshUser();
                 await _loadRoleSpecificData();
+                await _loadAnnouncements();
+                await _loadWishlistAndCart();
               },
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    // SECTION 1: PROFILE HEADER (Common for all)
+                    // PROFILE HEADER (Common for all)
                     _buildProfileHeader(authProvider),
 
                     const SizedBox(height: 24),
 
-                    // SECTION 2: ROLE-SPECIFIC CONTENT
+                    //  ROLE-SPECIFIC CONTENT
                     if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
                     if (authProvider.userRole == 'Seller')
                       _buildSellerContent(authProvider),
@@ -116,12 +146,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 3: COMMON SETTINGS (All users)
+                    //  COMMON SETTINGS (All users)
                     _buildCommonSettings(),
 
                     const SizedBox(height: 16),
 
-                    // SECTION 4: LOGOUT
+                    // LOGOUT
                     _buildLogoutButton(authProvider),
 
                     const SizedBox(height: 20),
@@ -164,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // SECTION 1: PROFILE HEADER
+  // PROFILE HEADER
   Widget _buildProfileHeader(AuthProvider auth) {
     final user = auth.user;
     final userData = auth.userData;
@@ -281,14 +311,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // SECTION 2: ROLE-SPECIFIC CONTENT
+  // ROLE-SPECIFIC CONTENT
   // BUYER CONTENT
   Widget _buildBuyerContent() {
     final orderProvider = Provider.of<OrderProvider>(context);
+    final wishlistProvider = Provider.of<WishlistProvider>(context);
+    final cartProvider = Provider.of<CartProvider>(context);
+
     final pendingOrdersCount = orderProvider.buyerOrders
         .where((o) =>
             o.orderStatus == 'pending' || o.orderStatus == 'pending_contact')
         .length;
+
+    // Get counts
+    final wishlistCount = wishlistProvider.items?.length ?? 0;
+    final cartCount = cartProvider.items?.length ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,11 +356,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
-              // My Wishlist
-              _buildMenuItem(
+              // My Wishlist with badge
+              _buildMenuItemWithBadge(
                 icon: Icons.favorite,
                 title: 'My Wishlist',
                 subtitle: 'Items you saved',
+                badgeCount: wishlistCount,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -333,11 +371,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
-              // My Cart
-              _buildMenuItem(
+              // My Cart with badge
+              _buildMenuItemWithBadge(
                 icon: Icons.shopping_cart,
                 title: 'My Cart',
                 subtitle: 'Items ready to purchase',
+                badgeCount: cartCount,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -598,15 +637,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
               ),
-
-            // Seller Tools section
           ],
         );
       },
     );
   }
 
-  //  DONOR CONTENT
+  // DONOR CONTENT
   Widget _buildDonorContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -661,34 +698,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Preferences',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          elevation: 2,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Column(
-            children: [
-              _buildMenuItem(
-                icon: Icons.notifications,
-                title: 'Notifications',
-                subtitle: 'Manage your donation alerts',
-                onTap: () => _showComingSoon(),
-              ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              _buildMenuItem(
-                icon: Icons.visibility,
-                title: 'Anonymous Donations',
-                subtitle: 'Default anonymity setting',
-                onTap: () => _showComingSoon(),
-              ),
-            ],
           ),
         ),
       ],
@@ -780,61 +789,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // SECTION 3: COMMON SETTINGS
+  // COMMON SETTINGS (All users - Updated with Chat)
   Widget _buildCommonSettings() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Card(
-          elevation: 2,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            children: [
-              _buildMenuItem(
-                icon: Icons.notifications,
-                title: 'Notifications',
-                subtitle: 'Manage your alerts',
-                onTap: () => _showComingSoon(),
+    return Consumer<AnnouncementProvider>(
+      builder: (context, announcementProvider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Settings',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: Column(
+                children: [
+                  _buildMenuItemWithBadge(
+                    icon: Icons.notifications,
+                    title: 'Notifications',
+                    subtitle: 'View announcements and updates',
+                    badgeCount: announcementProvider.unreadCount,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen()),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  _buildMenuItem(
+                    key: _helpSupportKey,
+                    icon: Icons.help,
+                    title: 'Help & Support',
+                    subtitle: 'Chat with our AI assistant',
+                    onTap: () {
+                      ChatScreen.showAnchored(
+                        context: context,
+                        anchorKey: _helpSupportKey,
+                        height: 600.0,
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  _buildMenuItem(
+                    icon: Icons.info,
+                    title: 'About KindCart',
+                    subtitle: 'Learn about our mission',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AboutScreen()),
+                      );
+                    },
+                  ),
+                ],
               ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              _buildMenuItem(
-                icon: Icons.help,
-                title: 'Help & Support',
-                subtitle: 'FAQs and contact us',
-                onTap: () => _showComingSoon(),
-              ),
-              const Divider(height: 1, indent: 16, endIndent: 16),
-              _buildMenuItem(
-                icon: Icons.info,
-                title: 'About KindCart',
-                subtitle: 'Learn about our mission',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AboutScreen()),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
   // HELPER WIDGETS
   Widget _buildMenuItem({
+    Key? key,
     required IconData icon,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: key,
       leading: Icon(icon, color: Colors.green),
       title: Text(title),
       subtitle: Text(subtitle),
@@ -845,6 +874,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // method for menu items with badge
   Widget _buildMenuItemWithBadge({
+    Key? key,
     required IconData icon,
     required String title,
     required String subtitle,
@@ -852,6 +882,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: key,
       leading: Icon(icon, color: Colors.green),
       title: Text(title),
       subtitle: Text(subtitle),
@@ -996,7 +1027,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameController = TextEditingController(text: userData?['name'] ?? '');
     final phoneController =
         TextEditingController(text: userData?['phone'] ?? '');
-    String? selectedRole = auth.userRole;
     bool isLoading = false;
 
     showDialog(
@@ -1028,25 +1058,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       keyboardType: TextInputType.phone,
                       enabled: !isLoading,
                     ),
-                    const SizedBox(height: 15),
-                    DropdownButtonFormField<String>(
-                      value: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'Buyer', child: Text('Buyer')),
-                        DropdownMenuItem(
-                            value: 'Seller', child: Text('Seller')),
-                        DropdownMenuItem(value: 'Donor', child: Text('Donor')),
-                      ],
-                      onChanged: isLoading
-                          ? null
-                          : (value) {
-                              setDialogState(() => selectedRole = value);
-                            },
-                    ),
                   ],
                 ),
               ),
@@ -1074,7 +1085,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             phone: phoneController.text.isNotEmpty
                                 ? phoneController.text
                                 : null,
-                            role: selectedRole,
+                            role: null,
                           );
 
                           if (dialogContext.mounted) {
