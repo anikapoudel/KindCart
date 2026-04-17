@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
@@ -28,11 +29,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final GlobalKey _helpSupportKey = GlobalKey();
+  int _selectedIndex = 3;
 
   @override
   void initState() {
     super.initState();
-    // Load role-specific data when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadRoleSpecificData();
@@ -79,23 +80,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        Navigator.popUntil(context, (route) => route.isFirst);
+        break;
+      case 1:
+        Navigator.pop(context);
+        Navigator.push(context,
+            MaterialPageRoute(builder: (context) => const CartScreen()));
+        break;
+      case 2:
+        Navigator.pop(context);
+        Navigator.push(context,
+            MaterialPageRoute(builder: (context) => const WishlistScreen()));
+        break;
+    }
+  }
+
+  Widget? _buildBottomNavigationBar(String? userRole, bool isDark) {
+    final bool isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+    if (userRole != 'Buyer' || !isAndroid) {
+      return null;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFE8F5F9),
+            Color(0xFFFCE4EC),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE91E63).withAlpha(30),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onBottomNavTap,
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: const Color(0xFFE91E63),
+        unselectedItemColor:
+            isDark ? Colors.grey[600] : const Color(0xFF66BB6A),
+        selectedLabelStyle:
+            const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+        unselectedLabelStyle: const TextStyle(fontSize: 10),
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home_rounded),
+              label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_bag_outlined),
+              activeIcon: Icon(Icons.shopping_bag_rounded),
+              label: 'Cart'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.favorite_border_rounded),
+              activeIcon: Icon(Icons.favorite_rounded),
+              label: 'Wishlist'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              activeIcon: Icon(Icons.person_rounded),
+              label: 'Profile'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final userRole = authProvider.userRole;
+
+    // background color based on user role
+    Color getBackgroundColor() {
+      if (userRole == 'Seller') {
+        return const Color(0xFFFFF7ED); // Light orange for seller
+      } else if (userRole == 'Donor' || userRole == 'Buyer') {
+        return Colors.white; // White/default for donor and buyer
+      }
+      return Colors.white; // Default for other roles
+    }
 
     return Scaffold(
+      backgroundColor: getBackgroundColor(),
       appBar: AppBar(
         title: Text(_getTitle(authProvider.userRole)),
         backgroundColor: _getRoleColor(authProvider.userRole),
         foregroundColor: Colors.white,
+        leading: userRole == 'Buyer'
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         actions: [
           IconButton(
             icon: Icon(
                 themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => themeProvider.toggleTheme(),
           ),
-          // Role-specific action buttons
           if (authProvider.userRole == 'Seller' &&
               authProvider.isSellerApproved)
             IconButton(
@@ -122,7 +223,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: authProvider.isAuthenticated
           ? RefreshIndicator(
               onRefresh: () async {
-                // Refresh both auth and role-specific data
                 await authProvider.refreshUser();
                 await _loadRoleSpecificData();
                 await _loadAnnouncements();
@@ -132,44 +232,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    // PROFILE HEADER (Common for all)
                     _buildProfileHeader(authProvider),
-
                     const SizedBox(height: 24),
-
-                    //  ROLE-SPECIFIC CONTENT
                     if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
                     if (authProvider.userRole == 'Seller')
                       _buildSellerContent(authProvider),
                     if (authProvider.userRole == 'Donor') _buildDonorContent(),
                     if (authProvider.userRole == 'Admin') _buildAdminContent(),
-
                     const SizedBox(height: 24),
-
-                    //  COMMON SETTINGS (All users)
                     _buildCommonSettings(),
-
                     const SizedBox(height: 16),
-
-                    // LOGOUT
                     _buildLogoutButton(authProvider),
-
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
             )
           : _buildLoginPrompt(),
+      bottomNavigationBar: _buildBottomNavigationBar(userRole, isDark),
     );
   }
 
-  // HELPER METHODS
   String _getTitle(String? role) {
     switch (role) {
       case 'Buyer':
         return 'My Account';
       case 'Seller':
-        return 'Seller Dashboard';
+        return 'My Account';
       case 'Donor':
         return 'Donor Impact';
       case 'Admin':
@@ -182,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Color _getRoleColor(String? role) {
     switch (role) {
       case 'Buyer':
-        return Colors.blue;
+        return Colors.pinkAccent;
       case 'Seller':
         return Colors.orange;
       case 'Donor':
@@ -194,7 +283,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // PROFILE HEADER
   Widget _buildProfileHeader(AuthProvider auth) {
     final user = auth.user;
     final userData = auth.userData;
@@ -214,7 +302,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            // Avatar with verification badge
             Stack(
               children: [
                 CircleAvatar(
@@ -251,8 +338,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(width: 16),
-
-            // User info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,8 +396,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ROLE-SPECIFIC CONTENT
-  // BUYER CONTENT
   Widget _buildBuyerContent() {
     final orderProvider = Provider.of<OrderProvider>(context);
     final wishlistProvider = Provider.of<WishlistProvider>(context);
@@ -323,17 +406,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             o.orderStatus == 'pending' || o.orderStatus == 'pending_contact')
         .length;
 
-    // Get counts
     final wishlistCount = wishlistProvider.items?.length ?? 0;
     final cartCount = cartProvider.items?.length ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Shopping',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        const Text('Shopping',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         Card(
           elevation: 2,
@@ -341,7 +421,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
-              // My Orders with badge for pending orders
               _buildMenuItemWithBadge(
                 icon: Icons.shopping_bag,
                 title: 'My Orders',
@@ -356,7 +435,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
-              // My Wishlist with badge
               _buildMenuItemWithBadge(
                 icon: Icons.favorite,
                 title: 'My Wishlist',
@@ -371,7 +449,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               const Divider(height: 1, indent: 16, endIndent: 16),
-              // My Cart with badge
               _buildMenuItemWithBadge(
                 icon: Icons.shopping_cart,
                 title: 'My Cart',
@@ -391,7 +468,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // SELLER CONTENT
   Widget _buildSellerContent(AuthProvider auth) {
     return Consumer<ProductProvider>(
       builder: (context, productProvider, child) {
@@ -403,7 +479,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Approval pending banner
             if (!auth.isSellerApproved)
               Container(
                 margin: const EdgeInsets.only(bottom: 20),
@@ -429,10 +504,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Seller Approval Pending',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                          const Text('Seller Approval Pending',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                           Text(
                             auth.sellerApprovalRequested
                                 ? 'Your request is being reviewed'
@@ -461,36 +534,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-
-            // Stats cards
             const Text('Overview',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: _buildStatCard(
-                    '$activeListings',
-                    'Active',
-                    Icons.inventory,
-                    Colors.green,
-                  ),
+                  child: _buildStatCard('$activeListings', 'Active',
+                      Icons.inventory, Colors.green),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStatCard(
-                    '$soldItems',
-                    'Sold',
-                    Icons.sell,
-                    Colors.blue,
-                  ),
+                      '$soldItems', 'Sold', Icons.sell, Colors.blue),
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // My listings
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -502,8 +562,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const MyListingsScreen(),
-                      ),
+                          builder: (context) => const MyListingsScreen()),
                     );
                   },
                   child: const Text('View All'),
@@ -511,7 +570,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 12),
-
             if (productProvider.userProducts.isEmpty)
               Container(
                 padding: const EdgeInsets.all(32),
@@ -540,18 +598,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 height: 200,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: productProvider.userProducts.length > 5
-                      ? 5
+                  itemCount: productProvider.userProducts.length > 9
+                      ? 9
                       : productProvider.userProducts.length,
                   itemBuilder: (context, index) {
                     final product = productProvider.userProducts[index];
                     return GestureDetector(
                       onTap: () {
-                        Navigator.pushNamed(
-                          context,
-                          '/item-detail',
-                          arguments: product,
-                        );
+                        Navigator.pushNamed(context, '/item-detail',
+                            arguments: product);
                       },
                       child: Container(
                         width: 140,
@@ -595,7 +650,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           fontWeight: FontWeight.w600),
                                     ),
                                     Text(
-                                      '₹${product.price.toStringAsFixed(0)}',
+                                      'NPR ${product.price.toStringAsFixed(0)}',
                                       style: const TextStyle(
                                           color: Colors.orange,
                                           fontWeight: FontWeight.bold),
@@ -643,15 +698,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // DONOR CONTENT
   Widget _buildDonorContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Donor Tools',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        const Text('Donor Tools',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         Card(
           elevation: 2,
@@ -662,10 +714,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Quick Actions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
+                const Text('Quick Actions',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -689,9 +740,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.home,
                         label: 'Donor Home',
                         color: Colors.green,
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
+                        onTap: () => Navigator.pop(context),
                       ),
                     ),
                   ],
@@ -704,7 +753,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Helper widget for donor action buttons
   Widget _buildDonorActionButton({
     required IconData icon,
     required String label,
@@ -728,10 +776,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(
               label,
               style: TextStyle(
-                color: color,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+                  color: color, fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -739,7 +784,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ADMIN CONTENT
   Widget _buildAdminContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -789,7 +833,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // COMMON SETTINGS (All users - Updated with Chat)
   Widget _buildCommonSettings() {
     return Consumer<AnnouncementProvider>(
       builder: (context, announcementProvider, child) {
@@ -828,7 +871,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ChatScreen.showAnchored(
                         context: context,
                         anchorKey: _helpSupportKey,
-                        height: 600.0,
+                        height: 490.0,
                       );
                     },
                   ),
@@ -854,7 +897,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // HELPER WIDGETS
   Widget _buildMenuItem({
     Key? key,
     required IconData icon,
@@ -872,7 +914,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // method for menu items with badge
   Widget _buildMenuItemWithBadge({
     Key? key,
     required IconData icon,
@@ -899,10 +940,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Text(
                 '$badgeCount',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold),
               ),
             ),
           const SizedBox(width: 8),
@@ -957,15 +997,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildLogoutButton(AuthProvider auth) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showLogoutDialog(auth),
-        icon: const Icon(Icons.logout, color: Colors.red),
-        label: const Text('Logout', style: TextStyle(color: Colors.red)),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.red),
-          padding: const EdgeInsets.symmetric(vertical: 15),
+    return Center(
+      child: SizedBox(
+        width: 140,
+        child: ElevatedButton.icon(
+          onPressed: () => _showLogoutDialog(auth),
+          icon: const Icon(Icons.logout, color: Colors.white),
+          label: const Text(
+            'Logout',
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFC0395A),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+            elevation: 3,
+            shadowColor: Colors.red.shade200,
+          ),
         ),
       ),
     );
@@ -1020,10 +1072,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // DIALOGS
   void _showEditProfileDialog(AuthProvider auth) {
     final userData = auth.userData;
-
     final nameController = TextEditingController(text: userData?['name'] ?? '');
     final phoneController =
         TextEditingController(text: userData?['phone'] ?? '');
@@ -1128,20 +1178,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext);
-              }
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
             },
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              if (dialogContext.mounted) {
-                Navigator.pop(dialogContext);
-              }
-
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
               await auth.signOut();
-
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
