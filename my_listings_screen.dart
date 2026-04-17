@@ -37,6 +37,15 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final productProvider = Provider.of<ProductProvider>(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bool isWebLayout = screenWidth > 800;
+
+    // number of columns based on screen size
+    final int crossAxisCount = isWebLayout ? 4 : 2;
+
+    // card height based on screen size for mobile
+    final double cardHeight = isWebLayout ? 280 : screenHeight * 0.28;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,7 +60,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const AddProductScreen()),
-              );
+              ).then((_) => _loadUserProducts());
             },
           ),
         ],
@@ -91,7 +100,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                               MaterialPageRoute(
                                   builder: (context) =>
                                       const AddProductScreen()),
-                            );
+                            ).then((_) => _loadUserProducts());
                           },
                           icon: const Icon(Icons.add),
                           label: const Text('Add Your First Product'),
@@ -107,273 +116,225 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                : GridView.builder(
+                    padding: const EdgeInsets.all(12),
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: isWebLayout ? 300 : 200,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: isWebLayout ? 0.85 : 0.65,
+                    ),
                     itemCount: productProvider.userProducts.length,
                     itemBuilder: (context, index) {
                       final product = productProvider.userProducts[index];
-                      return _buildProductCard(product);
+                      return _buildProductCard(product, isWebLayout);
                     },
                   ),
       ),
     );
   }
 
-  Widget _buildProductCard(ProductModel product) {
+  Widget _buildProductCard(ProductModel product, bool isWebLayout) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ItemDetailScreen(item: product),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          children: [
-            // Image section
-            Container(
-              height: 150,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Image section with tap to view details
+          Expanded(
+            flex: 2,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ItemDetailScreen(item: product),
+                  ),
+                );
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  image: product.imageUrls.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(product.imageUrls.first),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                 ),
-                image: product.imageUrls.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(product.imageUrls.first),
-                        fit: BoxFit.cover,
+                child: product.imageUrls.isEmpty
+                    ? const Center(
+                        child: Icon(Icons.image_not_supported,
+                            size: 30, color: Colors.grey),
                       )
                     : null,
               ),
-              child: product.imageUrls.isEmpty
-                  ? const Center(
-                      child:
-                          Icon(Icons.image_not_supported, color: Colors.grey),
-                    )
-                  : null,
             ),
+          ),
 
-            // Details section
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title and status
-                  Row(
+          // Details section
+          Padding(
+            padding: EdgeInsets.all(isWebLayout ? 8 : 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title
+                Text(
+                  product.title,
+                  style: TextStyle(
+                    fontSize: isWebLayout ? 14 : 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+                SizedBox(height: isWebLayout ? 4 : 2),
+
+                // Price
+                Text(
+                  'NPR ${product.price.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: isWebLayout ? 16 : 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+
+                SizedBox(height: isWebLayout ? 4 : 2),
+
+                // Status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: product.isAvailable
+                        ? Colors.green.withAlpha(20)
+                        : Colors.red.withAlpha(20),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Text(
-                          product.title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color:
+                              product.isAvailable ? Colors.green : Colors.red,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                      const SizedBox(width: 3),
+                      Text(
+                        product.isAvailable ? 'Active' : 'Sold',
+                        style: TextStyle(
+                          fontSize: isWebLayout ? 10 : 8,
+                          color:
+                              product.isAvailable ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.w500,
                         ),
-                        decoration: BoxDecoration(
-                          color: product.isAvailable
-                              ? Colors.green.withAlpha(20)
-                              : Colors.red.withAlpha(20),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: product.isAvailable
-                                    ? Colors.green
-                                    : Colors.red,
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: isWebLayout ? 8 : 6),
+
+                // Edit and Delete buttons row
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditProductScreen(
+                                product: product,
                               ),
                             ),
-                            const SizedBox(width: 4),
+                          ).then((result) {
+                            if (result == true) {
+                              _loadUserProducts();
+                            }
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.orange),
+                          foregroundColor: Colors.orange,
+                          padding: EdgeInsets.symmetric(
+                              vertical: isWebLayout ? 8 : 4),
+                          minimumSize: const Size(0, 30),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.edit, size: isWebLayout ? 16 : 12),
+                            SizedBox(width: isWebLayout ? 4 : 2),
                             Text(
-                              product.isAvailable ? 'Active' : 'Sold',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: product.isAvailable
-                                    ? Colors.green
-                                    : Colors.red,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              'Edit',
+                              style: TextStyle(fontSize: isWebLayout ? 12 : 10),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Category and condition
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withAlpha(20),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          product.category,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withAlpha(20),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          product.condition,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // Price
-                  Text(
-                    '₹${product.price.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
                     ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Stats
-                  Row(
-                    children: [
-                      const Icon(Icons.visibility,
-                          size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${product.viewCount} views',
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                      const SizedBox(width: 16),
-                      const Icon(Icons.favorite, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${product.wishlistCount}',
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => EditProductScreen(
-                                  product: product,
-                                ),
-                              ),
-                            ).then((result) {
-                              if (result == true) {
-                                _loadUserProducts();
-                              }
-                            });
-                          },
-                          icon: const Icon(Icons.edit, size: 18),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.orange),
-                            foregroundColor: Colors.orange,
-                          ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          _confirmDelete(product);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          foregroundColor: Colors.red,
+                          padding: EdgeInsets.symmetric(
+                              vertical: isWebLayout ? 8 : 4),
+                          minimumSize: const Size(0, 30),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            if (product.isAvailable) {
-                              _markAsSold(product);
-                            } else {
-                              _markAsAvailable(product);
-                            }
-                          },
-                          icon: Icon(
-                            product.isAvailable ? Icons.sell : Icons.unarchive,
-                            size: 18,
-                          ),
-                          label: Text(
-                            product.isAvailable ? 'Mark Sold' : 'List Again',
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: product.isAvailable
-                                  ? Colors.green
-                                  : Colors.blue,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.delete, size: isWebLayout ? 16 : 12),
+                            SizedBox(width: isWebLayout ? 4 : 2),
+                            Text(
+                              'Delete',
+                              style: TextStyle(fontSize: isWebLayout ? 12 : 10),
                             ),
-                            foregroundColor: product.isAvailable
-                                ? Colors.green
-                                : Colors.blue,
-                          ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _markAsSold(ProductModel product) async {
+  Future<void> _confirmDelete(ProductModel product) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mark as Sold'),
-        content: const Text('Are you sure you want to mark this item as sold?'),
+        title: const Text('Delete Product'),
+        content: Text(
+            'Are you sure you want to delete "${product.title}"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -382,10 +343,10 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Yes, Sold'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -395,38 +356,23 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
 
     final productProvider =
         Provider.of<ProductProvider>(context, listen: false);
-    final success = await productProvider.updateProduct(
-      productId: product.id,
-      isAvailable: false,
-    );
+    final success = await productProvider.deleteProduct(product.id);
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Item marked as sold'),
+          content: Text('Product deleted successfully'),
           backgroundColor: Colors.green,
         ),
       );
       await _loadUserProducts();
-    }
-  }
-
-  Future<void> _markAsAvailable(ProductModel product) async {
-    final productProvider =
-        Provider.of<ProductProvider>(context, listen: false);
-    final success = await productProvider.updateProduct(
-      productId: product.id,
-      isAvailable: true,
-    );
-
-    if (success && mounted) {
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Item listed again'),
-          backgroundColor: Colors.green,
+          content: Text('Failed to delete product'),
+          backgroundColor: Colors.red,
         ),
       );
-      await _loadUserProducts();
     }
   }
 }
