@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import '../screens/about_screen.dart';
-import '../screens/shop_screen.dart';
 import '../screens/cart_screen.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:gif_view/gif_view.dart';
 import '../screens/chat_screen.dart';
-import '../screens/search_screen.dart';
 import '../screens/wishlist_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/item_detail_screen.dart';
@@ -87,7 +85,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
 
   //  up to 30 featured products (all latest items)
   List<ProductModel> _getFeaturedProducts(List<ProductModel> products) {
-    // Create a copy and sort by newest first
     final sortedProducts = List<ProductModel>.from(products);
     sortedProducts.sort((a, b) {
       if (a.createdAt != null && b.createdAt != null) {
@@ -105,6 +102,44 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
   List<ProductModel> _getDonationItems(List<ProductModel> products) =>
       products.where((p) => p.price == 0).take(5).toList();
 
+  // Handle bottom navigation tap
+  void _onBottomNavTap(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Home
+        // Already on home, do nothing
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CartScreen()),
+        ).then((_) {
+          // When coming back from Cart, reset to home index
+          if (mounted) setState(() => _selectedIndex = 0);
+        });
+        break;
+      case 2:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const WishlistScreen()),
+        ).then((_) {
+          if (mounted) setState(() => _selectedIndex = 0);
+        });
+        break;
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+        ).then((_) {
+          if (mounted) setState(() => _selectedIndex = 0);
+        });
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -112,7 +147,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     final productProvider = Provider.of<ProductProvider>(context);
 
     final isDark = themeProvider.isDarkMode;
-    final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF5F7F5);
+    final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFE8F5E9);
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -128,8 +163,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
 
     final featuredProducts = _getFeaturedProducts(productProvider.products);
     final donationItems = _getDonationItems(productProvider.products);
-
-    // Detecting if running on web (using screen width as indicator)
     final bool isWebLayout = screenWidth > 800;
 
     return Scaffold(
@@ -138,27 +171,22 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
         preferredSize: const Size.fromHeight(88),
         child: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [
-                      const Color(0xFF1A1A2E),
-                      const Color(0xFF1B2F3B),
-                      const Color(0xFF1A1A2E),
-                    ]
-                  : [
-                      const Color(0xFFE8F5E9),
-                      const Color(0xFFF3E5F5),
-                      const Color(0xFFE8F5E9),
-                    ],
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              stops: const [0.0, 0.5, 1.0],
+              stops: [0.0, 0.3, 0.7, 1.0],
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
                     ? Colors.black.withAlpha(40)
-                    : Colors.black.withAlpha(12),
+                    : const Color(0xFF2E7D32).withAlpha(40),
                 blurRadius: 12,
                 offset: const Offset(0, 3),
                 spreadRadius: 0,
@@ -185,25 +213,14 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: isDark
-                                  ? [
-                                      Colors.green.shade300,
-                                      Colors.purple.shade300
-                                    ]
-                                  : [
-                                      Colors.green.shade400,
-                                      Colors.purple.shade400
-                                    ],
+                            gradient: const LinearGradient(
+                              colors: [Colors.white, Colors.white70],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: (isDark
-                                        ? Colors.green.shade800
-                                        : Colors.green.shade200)
-                                    .withAlpha(80),
+                                color: Colors.white.withAlpha(80),
                                 blurRadius: 10,
                                 spreadRadius: 1,
                               ),
@@ -234,9 +251,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                                     color: Colors.green.withAlpha(30),
                                     child: Icon(
                                       Icons.eco,
-                                      color: isDark
-                                          ? Colors.green[300]
-                                          : Colors.green[700],
+                                      color: Colors.green[700],
                                       size: isWebLayout ? 26 : 22,
                                     ),
                                   );
@@ -254,16 +269,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             ShaderMask(
-                              shaderCallback: (bounds) => LinearGradient(
-                                colors: isDark
-                                    ? [
-                                        Colors.green.shade300,
-                                        Colors.purple.shade300
-                                      ]
-                                    : [
-                                        const Color(0xFF2E7D32),
-                                        const Color(0xFF7B1FA2)
-                                      ],
+                              shaderCallback: (bounds) => const LinearGradient(
+                                colors: [Colors.white, Colors.white70],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ).createShader(bounds),
@@ -287,11 +294,11 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                                   colors: isDark
                                       ? [
                                           Colors.green.shade900.withAlpha(60),
-                                          Colors.purple.shade900.withAlpha(60)
+                                          Colors.pink.shade900.withAlpha(60)
                                         ]
                                       : [
-                                          Colors.green.shade50,
-                                          Colors.purple.shade50
+                                          Colors.white.withAlpha(60),
+                                          Colors.white.withAlpha(60)
                                         ],
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
@@ -300,7 +307,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                                 border: Border.all(
                                   color: isDark
                                       ? Colors.grey[800]!
-                                      : Colors.grey[200]!,
+                                      : Colors.white.withAlpha(100),
                                   width: 0.5,
                                 ),
                               ),
@@ -310,9 +317,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                                   Icon(
                                     Icons.waving_hand_rounded,
                                     size: isWebLayout ? 14 : 12,
-                                    color: isDark
-                                        ? Colors.green[300]
-                                        : Colors.green[600],
+                                    color: Colors.white,
                                   ),
                                   const SizedBox(width: 4),
                                   Flexible(
@@ -321,9 +326,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                                       style: TextStyle(
                                         fontSize: isWebLayout ? 11 : 10,
                                         fontWeight: FontWeight.w500,
-                                        color: isDark
-                                            ? Colors.grey[300]
-                                            : Colors.grey[700],
+                                        color: Colors.white,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -441,14 +444,14 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                 const SizedBox(height: 24),
               ],
 
-              // Compact Footer -  ON WEB
+              // Compact Footer
               if (isWebLayout) _buildCompactFooter(isDark, context),
             ],
           ),
         ),
       ),
 
-      // Bottom Navigation - for Android
+      // Bottom Navigation
       bottomNavigationBar: isWebLayout ? null : _buildAndroidBottomNav(isDark),
 
       // Floating action button
@@ -475,7 +478,7 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
             ChatScreen.showAnchored(
               context: context,
               anchorKey: _fabKey,
-              height: 600.0,
+              height: 495.0,
             );
           },
           backgroundColor: Colors.transparent,
@@ -491,16 +494,17 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     );
   }
 
-  //  Footer
+  // Compact Footer
   Widget _buildCompactFooter(bool isDark, BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1A1A2E), const Color(0xFF16213E)]
-              : [const Color(0xFF1B5E20), const Color(0xFF0D47A1)],
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF2E7D32),
+            Color(0xFF4CAF50),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -540,14 +544,14 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                 children: const [
                   Icon(
                     Icons.menu_book_rounded,
-                    color: Color(0xFF1B5E20),
+                    color: Color(0xFF2E7D32),
                     size: 18,
                   ),
                   SizedBox(width: 8),
                   Text(
                     'Our Mission - About Us',
                     style: TextStyle(
-                      color: Color(0xFF1B5E20),
+                      color: Color(0xFF2E7D32),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -557,15 +561,12 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
             ),
           ),
           const SizedBox(height: 16),
-
-          // Divider
           Container(
             width: 80,
             height: 1,
             color: Colors.white.withAlpha(80),
           ),
           const SizedBox(height: 12),
-
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -589,16 +590,12 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
             ],
           ),
           const SizedBox(height: 12),
-
-          // Divider
           Container(
             width: 80,
             height: 1,
             color: Colors.white.withAlpha(80),
           ),
           const SizedBox(height: 12),
-
-          // Copyright Info
           Text(
             '© ${DateTime.now().year} KindCart',
             style: TextStyle(
@@ -739,16 +736,17 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
   Widget _buildAndroidBottomNav(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1A1A1A), const Color(0xFF2D1B2D)]
-              : [Colors.white, const Color(0xFFFFF0F5)],
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFE8F5F9),
+            Color(0xFFFCE4EC),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(15),
+            color: const Color(0xFFE91E63).withAlpha(30),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -756,27 +754,13 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
       ),
       child: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() => _selectedIndex = index);
-          switch (index) {
-            case 0:
-              break;
-            case 1:
-              NavigationHelper.goToCartScreen(context);
-              break;
-            case 2:
-              NavigationHelper.goToWishlistScreen(context);
-              break;
-            case 3:
-              NavigationHelper.goToProfileScreen(context);
-              break;
-          }
-        },
+        onTap: _onBottomNavTap,
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF7B2D8B),
-        unselectedItemColor: isDark ? Colors.grey[600] : Colors.grey[400],
+        selectedItemColor: const Color(0xFFE91E63),
+        unselectedItemColor:
+            isDark ? Colors.grey[600] : const Color(0xFF66BB6A),
         selectedLabelStyle:
             const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
         unselectedLabelStyle: const TextStyle(fontSize: 10),
@@ -1222,13 +1206,14 @@ class _ElegantIconButton extends StatelessWidget {
           ),
           icon: Icon(
             icon,
-            color: isDark ? Colors.grey[300] : Colors.grey[700],
+            color: isDark ? Colors.grey[300] : const Color(0xFF4CAF50),
             size: iconSize,
           ),
           onPressed: onTap,
           splashRadius: iconSize + 6,
-          splashColor:
-              isDark ? Colors.white.withAlpha(20) : Colors.green.withAlpha(30),
+          splashColor: isDark
+              ? Colors.white.withAlpha(20)
+              : const Color(0xFF4CAF50).withAlpha(30),
           highlightColor: Colors.transparent,
         ),
       ),
@@ -1301,14 +1286,14 @@ class _ElegantBadgeButton extends StatelessWidget {
               ),
               icon: Icon(
                 icon,
-                color: isDark ? Colors.grey[300] : Colors.grey[700],
+                color: isDark ? Colors.grey[300] : const Color(0xFF4CAF50),
                 size: iconSize,
               ),
               onPressed: onTap,
               splashRadius: iconSize + 6,
               splashColor: isDark
                   ? Colors.white.withAlpha(20)
-                  : Colors.green.withAlpha(30),
+                  : const Color(0xFF4CAF50).withAlpha(30),
               highlightColor: Colors.transparent,
             ),
           ),
@@ -1319,10 +1304,8 @@ class _ElegantBadgeButton extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [Colors.red[400]!, Colors.red[600]!]
-                        : [Colors.red[500]!, Colors.red[700]!],
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFEF5350), Color(0xFFE53935)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -1333,7 +1316,7 @@ class _ElegantBadgeButton extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withAlpha(50),
+                      color: const Color(0xFF4CAF50).withAlpha(50),
                       blurRadius: 4,
                       spreadRadius: 0,
                     ),
@@ -1413,7 +1396,7 @@ class _SectionHeader extends StatelessWidget {
           TextButton(
             onPressed: onAction,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF7B2D8B),
+              foregroundColor: const Color(0xFFE91E63),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1438,6 +1421,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// Looping GIF
 class _LoopingGif extends StatefulWidget {
   const _LoopingGif({Key? key}) : super(key: key);
 
