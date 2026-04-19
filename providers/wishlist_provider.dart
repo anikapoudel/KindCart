@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
 import '../models/product_model.dart';
-import 'auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class WishlistProvider extends ChangeNotifier {
   List<ProductModel> _items = [];
@@ -14,11 +13,20 @@ class WishlistProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
 
-  // Load wishlist from Firestore
-  Future<void> loadWishlist(String userId) async {
-    _setLoading(true);
+  void _setLoading(bool value) {
+    _isLoading = value;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
+  }
 
+  Future<void> loadWishlist(String userId) async {
+    if (userId.isEmpty) return;
+
+    _setLoading(true);
     try {
+      await FirebaseAuth.instance.currentUser?.getIdToken();
+
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -26,23 +34,18 @@ class WishlistProvider extends ChangeNotifier {
           .get();
 
       final List<ProductModel> wishlistItems = [];
-
       for (var doc in snapshot.docs) {
-        final productId = doc.data()['productId'] as String;
-
-        // Fetch product details
+        final productId = doc['productId'];
         final productDoc = await FirebaseFirestore.instance
             .collection('products')
             .doc(productId)
             .get();
-
         if (productDoc.exists) {
-          final product =
-              ProductModel.fromMap(productDoc.id, productDoc.data()!);
-          wishlistItems.add(product);
+          wishlistItems.add(
+            ProductModel.fromMap(productDoc.id, productDoc.data()!),
+          );
         }
       }
-
       _items = wishlistItems;
       debugPrint('✅ Loaded ${_items.length} wishlist items');
     } catch (e) {
@@ -52,7 +55,12 @@ class WishlistProvider extends ChangeNotifier {
     }
   }
 
-  // Check if product is in wishlist
+  void clearLocalWishlist() {
+    _items = [];
+    _isLoading = false;
+    notifyListeners();
+  }
+
   Future<bool> isInWishlist(String userId, String productId) async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -61,7 +69,6 @@ class WishlistProvider extends ChangeNotifier {
           .collection('wishlist')
           .doc(productId)
           .get();
-
       return doc.exists;
     } catch (e) {
       debugPrint('❌ Error checking wishlist: $e');
@@ -69,14 +76,8 @@ class WishlistProvider extends ChangeNotifier {
     }
   }
 
-  // Add to wishlist
   Future<bool> addToWishlist(String userId, ProductModel product) async {
     try {
-      debugPrint('➕ Adding to wishlist:');
-      debugPrint('  - User ID: $userId');
-      debugPrint('  - Product ID: ${product.id}');
-
-      // First, add to wishlist subcollection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -87,23 +88,15 @@ class WishlistProvider extends ChangeNotifier {
         'addedAt': FieldValue.serverTimestamp(),
       });
 
-      debugPrint('✅ Successfully added to wishlist in Firestore');
-
-      // update product wishlist count
       try {
         await FirebaseFirestore.instance
             .collection('products')
             .doc(product.id)
-            .update({
-          'wishlistCount': FieldValue.increment(1),
-        });
-        debugPrint('✅ Updated product wishlist count');
+            .update({'wishlistCount': FieldValue.increment(1)});
       } catch (e) {
-        // Log but don't fail
         debugPrint('⚠️ Could not update product wishlist count: $e');
       }
 
-      // Add to local list
       if (!_items.any((item) => item.id == product.id)) {
         _items.add(product);
       }
@@ -111,9 +104,8 @@ class WishlistProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } on FirebaseException catch (e) {
-      debugPrint('❌ Firebase error adding to wishlist:');
-      debugPrint('  - Code: ${e.code}');
-      debugPrint('  - Message: ${e.message}');
+      debugPrint(
+          '❌ Firebase error adding to wishlist: ${e.code} - ${e.message}');
       return false;
     }
   }
@@ -121,9 +113,6 @@ class WishlistProvider extends ChangeNotifier {
   Future<bool> removeFromWishlist(String userId, String productId,
       {bool showSnackbar = true}) async {
     try {
-      debugPrint('➖ Removing from wishlist: $productId');
-
-      // Remove from wishlist subcollection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -131,21 +120,16 @@ class WishlistProvider extends ChangeNotifier {
           .doc(productId)
           .delete();
 
-      // update product wishlist count
       try {
         await FirebaseFirestore.instance
             .collection('products')
             .doc(productId)
-            .update({
-          'wishlistCount': FieldValue.increment(-1),
-        });
+            .update({'wishlistCount': FieldValue.increment(-1)});
       } catch (e) {
         debugPrint('⚠️ Could not update product wishlist count: $e');
       }
 
-      // Remove from local list
       _items.removeWhere((item) => item.id == productId);
-
       notifyListeners();
       return true;
     } on FirebaseException catch (e) {
@@ -155,10 +139,8 @@ class WishlistProvider extends ChangeNotifier {
     }
   }
 
-  // Toggle wishlist
   Future<void> toggleWishlist(String userId, ProductModel product) async {
     final isInList = await isInWishlist(userId, product.id);
-
     if (isInList) {
       await removeFromWishlist(userId, product.id);
     } else {
@@ -166,7 +148,6 @@ class WishlistProvider extends ChangeNotifier {
     }
   }
 
-  // Clear wishlist
   Future<void> clearWishlist(String userId) async {
     try {
       final batch = FirebaseFirestore.instance.batch();
@@ -183,7 +164,6 @@ class WishlistProvider extends ChangeNotifier {
       await batch.commit();
       _items.clear();
       notifyListeners();
-      debugPrint('✅ Cleared wishlist');
     } catch (e) {
       debugPrint('❌ Error clearing wishlist: $e');
     }
@@ -201,11 +181,6 @@ class WishlistProvider extends ChangeNotifier {
         _items.sort((a, b) => b.price.compareTo(a.price));
         break;
     }
-    notifyListeners();
-  }
-
-  void _setLoading(bool value) {
-    _isLoading = value;
     notifyListeners();
   }
 }
