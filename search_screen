@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/product_provider.dart';
 import '../models/product_model.dart';
 import 'item_detail_screen.dart';
@@ -27,6 +28,10 @@ class _SearchScreenState extends State<SearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+    // Load all products initially
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _performSearch('');
+    });
   }
 
   @override
@@ -47,17 +52,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _performSearch(String query) {
-    final bool hasCategory = _selectedCategory != 'All';
-
-    // Only bail out if BOTH query is empty AND no category is selected
-    if (query.trim().isEmpty && !hasCategory) {
-      setState(() {
-        _isSearching = false;
-        _searchResults = [];
-      });
-      return;
-    }
-
     setState(() => _isSearching = true);
 
     try {
@@ -65,16 +59,29 @@ class _SearchScreenState extends State<SearchScreen> {
           Provider.of<ProductProvider>(context, listen: false);
 
       final results = productProvider.products.where((product) {
-        // If query is empty, skip title/description matching
+        // Check if product is available first
+        if (!product.isAvailable) return false;
+
+        // If category is 'All', only filter by query (if any)
+        if (_selectedCategory == 'All') {
+          // If no search query, include all products
+          if (query.trim().isEmpty) {
+            return true;
+          }
+          // Filter by search query
+          return product.title.toLowerCase().contains(query.toLowerCase()) ||
+              product.description.toLowerCase().contains(query.toLowerCase());
+        }
+
+        // Category is not 'All', filter by both category and query
         final matchesQuery = query.trim().isEmpty
             ? true
             : product.title.toLowerCase().contains(query.toLowerCase()) ||
                 product.description.toLowerCase().contains(query.toLowerCase());
 
-        final matchesCategory =
-            _selectedCategory == 'All' || product.category == _selectedCategory;
+        final matchesCategory = product.category == _selectedCategory;
 
-        return matchesQuery && matchesCategory && product.isAvailable;
+        return matchesQuery && matchesCategory;
       }).toList();
 
       setState(() {
@@ -97,107 +104,289 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
     final bool hasQuery =
         _searchController.text.isNotEmpty || _selectedCategory != 'All';
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Search'),
+        title: const Text(
+          'Search',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.green[700],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          //  Search Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _focusNode,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Search for items...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: hasQuery
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: _clearSearch,
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.green[50]!,
+              Colors.grey[100]!,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Container(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                filled: true,
-                fillColor: Colors.grey[50],
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _focusNode,
+                  textInputAction: TextInputAction.search,
+                  style: const TextStyle(fontSize: 16),
+                  decoration: InputDecoration(
+                    hintText: 'Search for items...',
+                    hintStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    prefixIcon: Container(
+                      margin: const EdgeInsets.all(12),
+                      child: Icon(
+                        Icons.search_rounded,
+                        color: Colors.green[600],
+                        size: 24,
+                      ),
+                    ),
+                    suffixIcon: hasQuery
+                        ? Container(
+                            margin: const EdgeInsets.all(12),
+                            child: InkWell(
+                              onTap: _clearSearch,
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: Colors.grey[500],
+                                size: 20,
+                              ),
+                            ),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide(
+                        color: Colors.green[400]!,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                  ),
+                  onChanged: _performSearch,
+                  onSubmitted: _performSearch,
+                ),
               ),
-              onChanged: _performSearch,
-              onSubmitted: _performSearch,
+            ),
+
+            // Centered Category Filter Chips - Dynamic from Firestore
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildCategoryChip('All', _selectedCategory == 'All', () {
+                        setState(() => _selectedCategory = 'All');
+                        _performSearch(_searchController.text);
+                      }),
+                      const SizedBox(width: 8),
+
+                      // Dynamic categories from Firestore
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('categories')
+                            .orderBy('name')
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          // Show loading indicator while fetching
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.green[400],
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Handle errors or no data
+                          if (snapshot.hasError || !snapshot.hasData) {
+                            return const SizedBox.shrink();
+                          }
+
+                          // Get categories from Firestore
+                          final categories = snapshot.data!.docs;
+                          final categoryNames = categories
+                              .map((doc) => doc['name'] as String)
+                              .toList();
+
+                          // Show nothing if no categories
+                          if (categoryNames.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          // Return category chips
+                          return Row(
+                            children: categoryNames.map((category) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _buildCategoryChip(
+                                  category,
+                                  _selectedCategory == category,
+                                  () {
+                                    setState(
+                                        () => _selectedCategory = category);
+                                    _performSearch(_searchController.text);
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: Colors.grey),
+
+            // Body
+            Expanded(
+              child: _isSearching
+                  ? const Center(child: CircularProgressIndicator())
+                  : _searchResults.isEmpty &&
+                          (_searchController.text.isNotEmpty ||
+                              _selectedCategory != 'All')
+                      ? _buildEmptyState()
+                      : _buildSearchResults(isWebLayout),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.search_off,
+              size: 56,
+              color: Colors.grey[400],
             ),
           ),
-
-          // Category Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                _buildCategoryChip('All', _selectedCategory == 'All', () {
-                  setState(() => _selectedCategory = 'All');
-                  _performSearch(_searchController.text);
-                }),
-                ...ProductModel.categoryOptions.map((category) {
-                  return _buildCategoryChip(
-                    category,
-                    _selectedCategory == category,
-                    () {
-                      setState(() => _selectedCategory = category);
-                      _performSearch(_searchController.text);
-                    },
-                  );
-                }),
-              ],
-            ),
+          const SizedBox(height: 24),
+          Text(
+            _searchController.text.isEmpty && _selectedCategory != 'All'
+                ? 'No items in "${_selectedCategory}" category'
+                : 'No results for "${_searchController.text}"',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
           ),
-
-          const Divider(height: 1),
-
-          //  Body
-          Expanded(
-            child: _isSearching
-                ? const Center(child: CircularProgressIndicator())
-                : hasQuery
-                    ? _buildSearchResults()
-                    : _buildDefaultView(),
+          const SizedBox(height: 8),
+          Text(
+            _searchController.text.isEmpty && _selectedCategory != 'All'
+                ? 'Try selecting a different category'
+                : 'Try different keywords or change the category filter',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  // Default view
+  // Default view for when no search has been performed
   Widget _buildDefaultView() {
     if (_recentSearches.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search, size: 72, color: Colors.grey[300]),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search,
+                size: 56,
+                color: Colors.green[400],
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Search for anything',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[500],
+                color: Colors.grey[700],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               'Find clothes, electronics, books and more',
-              style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -213,22 +402,22 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             const Text(
               'Recent Searches',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             TextButton(
               onPressed: () => setState(() => _recentSearches.clear()),
               child: const Text(
                 'Clear all',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: Colors.green, fontSize: 14),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         // Recent search chips
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 10,
+          runSpacing: 10,
           children: _recentSearches.map((search) {
             return GestureDetector(
               onTap: () {
@@ -236,15 +425,18 @@ class _SearchScreenState extends State<SearchScreen> {
                 _performSearch(search);
               },
               child: Chip(
-                avatar: const Icon(Icons.history, size: 16, color: Colors.grey),
-                label: Text(search, style: const TextStyle(fontSize: 13)),
-                deleteIcon: const Icon(Icons.close, size: 16),
+                avatar: Icon(Icons.history, size: 18, color: Colors.green[400]),
+                label: Text(search, style: const TextStyle(fontSize: 14)),
+                deleteIcon:
+                    Icon(Icons.close, size: 16, color: Colors.grey[400]),
                 onDeleted: () => setState(() => _recentSearches.remove(search)),
-                backgroundColor: Colors.grey[100],
+                backgroundColor: Colors.white,
                 side: BorderSide(color: Colors.grey[300]!),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(25),
                 ),
+                elevation: 2,
+                shadowColor: Colors.grey.withOpacity(0.2),
               ),
             );
           }).toList(),
@@ -254,28 +446,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // Search results grid
-  Widget _buildSearchResults() {
-    if (_searchResults.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off, size: 72, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'No results for "${_searchController.text}"',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Try different keywords or change the category filter',
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
+  Widget _buildSearchResults(bool isWebLayout) {
+    if (_searchResults.isEmpty && _searchController.text.isEmpty) {
+      return _buildDefaultView();
     }
 
     return Column(
@@ -283,23 +456,30 @@ class _SearchScreenState extends State<SearchScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(
-            '${_searchResults.length} result${_searchResults.length == 1 ? '' : 's'} found',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${_searchResults.length} result${_searchResults.length == 1 ? '' : 's'} found',
+              style: TextStyle(
+                color: Colors.green[700],
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ),
         Expanded(
           child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.62,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isWebLayout ? 4 : 2,
+              childAspectRatio: isWebLayout ? 0.6 : 0.65,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
             ),
             itemCount: _searchResults.length,
             itemBuilder: (context, index) {
@@ -311,7 +491,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  //  Product card
+  // Product card
   Widget _buildProductCard(ProductModel product) {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -321,9 +501,9 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
       child: Card(
-        elevation: 2,
+        elevation: 3,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,28 +514,28 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  color: Colors.grey[100],
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(10),
+                    top: Radius.circular(12),
                   ),
                 ),
                 child: product.imageUrls.isNotEmpty
                     ? ClipRRect(
                         borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(10),
+                          top: Radius.circular(12),
                         ),
                         child: Image.network(
                           product.imageUrls.first,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Center(
                             child: Icon(Icons.broken_image,
-                                size: 24, color: Colors.grey[400]),
+                                size: 32, color: Colors.grey[400]),
                           ),
                         ),
                       )
                     : Center(
                         child: Icon(Icons.image_not_supported,
-                            size: 28, color: Colors.grey[400]),
+                            size: 36, color: Colors.grey[400]),
                       ),
               ),
             ),
@@ -363,22 +543,30 @@ class _SearchScreenState extends State<SearchScreen> {
             Expanded(
               flex: 2,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    Text(
-                      product.category,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(4),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      child: Text(
+                        product.category,
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       product.title,
                       style: const TextStyle(
@@ -391,24 +579,24 @@ class _SearchScreenState extends State<SearchScreen> {
                     const SizedBox(height: 4),
                     Text(
                       '₹${product.price.toStringAsFixed(0)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: Colors.green[700],
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Container(
-                          width: 6,
-                          height: 6,
+                          width: 8,
+                          height: 8,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: _getConditionColor(product.condition),
                           ),
                         ),
-                        const SizedBox(width: 3),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             product.condition,
@@ -437,25 +625,45 @@ class _SearchScreenState extends State<SearchScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.green : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
+          gradient: isSelected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.green[600]!,
+                    Colors.green[400]!,
+                  ],
+                )
+              : null,
+          color: isSelected ? null : Colors.white,
+          borderRadius: BorderRadius.circular(25),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+                    color: Colors.green.withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   )
                 ]
-              : null,
+              : [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  )
+                ],
+          border: Border.all(
+            color: isSelected ? Colors.green[400]! : Colors.grey[300]!,
+            width: 1,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Colors.white : Colors.grey[700],
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
             fontSize: 13,
           ),
         ),
