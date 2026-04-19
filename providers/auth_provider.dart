@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
+typedef CartSaveCallback = Future<void> Function();
+
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  CartSaveCallback? _onSaveCartBeforeLogout;
+  CartSaveCallback? _onClearCartOnLogout;
+  Function(String?)? _onSetCartUserId;
 
   // Private variables
   Map<String, dynamic>? _userData;
@@ -46,7 +52,6 @@ class AuthProvider extends ChangeNotifier {
 
   bool get sellerApprovalRequested => _sellerApprovalRequested;
 
-  // Combined getters for business logic
   bool get canAccessSellerFeatures =>
       _userRole == 'Seller' && _isEmailVerified && _isSellerApproved;
 
@@ -59,6 +64,18 @@ class AuthProvider extends ChangeNotifier {
     _auth.authStateChanges().listen(_onAuthStateChanged);
   }
 
+  // CART: Add method to register cart callbacks
+  void registerCartCallbacks({
+    required CartSaveCallback onSaveCartBeforeLogout,
+    required CartSaveCallback onClearCartOnLogout,
+    required Function(String?) onSetCartUserId,
+  }) {
+    _onSaveCartBeforeLogout = onSaveCartBeforeLogout;
+    _onClearCartOnLogout = onClearCartOnLogout;
+    _onSetCartUserId = onSetCartUserId;
+    debugPrint('🛒 Cart callbacks registered in AuthProvider');
+  }
+
   @override
   void dispose() {
     _userDocSubscription?.cancel();
@@ -66,7 +83,7 @@ class AuthProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // Setter for userData (only used internally)
+  // Setter for userData
   void _updateUserData(Map<String, dynamic>? data) {
     _userData = data;
     notifyListeners();
@@ -112,6 +129,9 @@ class AuthProvider extends ChangeNotifier {
         // Load user role and listen to changes
         await _loadUserRole(user.uid);
         _listenToUserData(user.uid);
+
+        // CART: Set current user in CartProvider after login
+        _onSetCartUserId?.call(user.uid);
       } catch (e) {
         debugPrint('❌ Error in auth state change: $e');
       }
@@ -123,6 +143,8 @@ class AuthProvider extends ChangeNotifier {
       _isSellerApproved = false;
       _sellerApprovalRequested = false;
       _updateUserData(null); // Clear userData on logout
+
+      _onSetCartUserId?.call(null);
 
       // Cancel all listeners
       _verificationListener?.cancel();
@@ -136,7 +158,6 @@ class AuthProvider extends ChangeNotifier {
 
   // Add email verification listener
   void _listenToVerificationStatus() {
-    // Don't start if already checking or user is null
     if (_isCheckingVerification || _user == null) {
       debugPrint(
           '⚠️ Not starting verification listener: already checking or user null');
@@ -150,10 +171,8 @@ class AuthProvider extends ChangeNotifier {
 
     debugPrint('🔍 Starting email verification polling...');
 
-    _verificationListener = Stream.periodic(const Duration(seconds: 3))
-        .take(20) // Check for up to 60 seconds
-        .listen((_) async {
-      // Check if user still exists
+    _verificationListener =
+        Stream.periodic(const Duration(seconds: 3)).take(20).listen((_) async {
       if (_user == null || !_isCheckingVerification) {
         debugPrint('🛑 Stopping verification listener: user null or cancelled');
         _verificationListener?.cancel();
@@ -182,7 +201,6 @@ class AuthProvider extends ChangeNotifier {
               debugPrint('❌ Error updating email verified status: $e');
             }
 
-            // Cancel the listener once verified
             _verificationListener?.cancel();
             _isCheckingVerification = false;
           }
@@ -191,7 +209,6 @@ class AuthProvider extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('❌ Error checking verification: $e');
-        // If error is due to user not found, cancel listener
         if (e.toString().contains('user-not-found') ||
             e.toString().contains('No such user') ||
             e.toString().contains('network')) {
@@ -206,13 +223,12 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
-  // Listen to real-time user data updates
   void _listenToUserData(String uid) {
     _userDocSubscription =
         _firestore.collection('users').doc(uid).snapshots().listen((snapshot) {
       if (snapshot.exists) {
         final data = snapshot.data()!;
-        _updateUserData(data); // Update _userData when Firestore changes
+        _updateUserData(data);
         _userRole = data['role'];
         _isProfileComplete = data['profileComplete'] ?? false;
         _isSellerApproved = data['sellerApproved'] ?? false;
@@ -236,7 +252,7 @@ class AuthProvider extends ChangeNotifier {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists) {
         final data = doc.data()!;
-        _updateUserData(data); // Store the data
+        _updateUserData(data);
         _userRole = data['role'];
         _isProfileComplete = data['profileComplete'] ?? false;
         _isSellerApproved = data['sellerApproved'] ?? false;
@@ -244,7 +260,6 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('✅ User data loaded: $_userRole');
       } else {
         debugPrint('⚠️ User document does not exist in Firestore');
-        // Try to create the document if it doesn't exist
         await _createUserDocument(uid);
       }
     } catch (e) {
@@ -273,7 +288,7 @@ class AuthProvider extends ChangeNotifier {
         };
 
         await _firestore.collection('users').doc(uid).set(userData);
-        _updateUserData(userData); // Set _userData after creation
+        _updateUserData(userData);
         debugPrint('✅ Created missing user document in Firestore');
       }
     } catch (e) {
@@ -357,7 +372,6 @@ class AuthProvider extends ChangeNotifier {
               debugPrint(
                   '❌ Failed to create Firestore document after 3 attempts');
             } else {
-              // Wait a bit before retrying
               await Future.delayed(const Duration(seconds: 1));
             }
           }
@@ -368,7 +382,6 @@ class AuthProvider extends ChangeNotifier {
           _sellerApprovalRequested = true;
         }
 
-        // Start listening for verification
         _listenToVerificationStatus();
 
         _setLoading(false);
@@ -412,7 +425,6 @@ class AuthProvider extends ChangeNotifier {
       final User? user = userCredential.user;
 
       if (user != null) {
-        // Reload user to get latest email verification status
         await user.reload();
         final freshUser = _auth.currentUser;
         final isVerified = freshUser?.emailVerified ?? false;
@@ -429,7 +441,7 @@ class AuthProvider extends ChangeNotifier {
 
         // Update last login and verification status in Firestore
         try {
-          // Check if document exists first
+          // Check if document exists
           final doc = await _firestore.collection('users').doc(user.uid).get();
 
           if (doc.exists) {
@@ -445,17 +457,18 @@ class AuthProvider extends ChangeNotifier {
               _updateUserData(updatedDoc.data());
             }
           } else {
-            // Create document if it doesn't exist
             await _createUserDocument(user.uid);
           }
           debugPrint('✅ Updated last login in Firestore');
         } catch (e) {
           debugPrint('⚠️ Error updating last login: $e');
-          // Don't fail the login if this fails
         }
 
         await _loadUserRole(user.uid);
         _isEmailVerified = true;
+
+        _onSetCartUserId?.call(user.uid);
+
         _setLoading(false);
         return true;
       }
@@ -477,22 +490,34 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Sign Out
+  //Sign Out method
   Future<void> signOut() async {
     _setLoading(true);
     try {
+      if (_onSaveCartBeforeLogout != null) {
+        await _onSaveCartBeforeLogout!();
+        debugPrint('🛒 Cart preserved before logout');
+      }
+
+      // Cancel listeners
       await _userDocSubscription?.cancel();
       await _verificationListener?.cancel();
+
+      // Sign out from Firebase
       await _auth.signOut();
+
+      // Clear local state
       _userRole = null;
       _isEmailVerified = false;
       _isProfileComplete = false;
       _isSellerApproved = false;
       _sellerApprovalRequested = false;
-      _updateUserData(null); // Clear userData on sign out
+      _updateUserData(null);
       _isCheckingVerification = false;
+      _onSetCartUserId?.call(null);
+
       _setLoading(false);
-      debugPrint('✅ User signed out');
+      debugPrint('✅ User signed out (cart preserved in Firestore)');
     } catch (e) {
       debugPrint('❌ Error signing out: $e');
       _errorMessage = 'Error signing out';
@@ -711,7 +736,7 @@ class AuthProvider extends ChangeNotifier {
       final doc = await _firestore.collection('users').doc(_user!.uid).get();
 
       if (doc.exists) {
-        _updateUserData(doc.data()); // Update _userData
+        _updateUserData(doc.data());
         debugPrint('✅ User data retrieved from Firestore');
         return doc.data();
       } else {
@@ -720,7 +745,6 @@ class AuthProvider extends ChangeNotifier {
         // Try to create the document if it doesn't exist
         try {
           await _createUserDocument(_user!.uid);
-          // Try to get it again
           final newDoc =
               await _firestore.collection('users').doc(_user!.uid).get();
           if (newDoc.exists) {
@@ -819,13 +843,9 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       if (_user == null) return false;
-
-      // Delete user data from Firestore first
       await _firestore.collection('users').doc(_user!.uid).delete();
-
       // Delete the user account
       await _user!.delete();
-
       // Sign out
       await signOut();
 
@@ -848,7 +868,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Fetch user data method (used in add_donation_screen)
+  // Fetch user data method
   Future<void> fetchUserData() async {
     try {
       if (_user != null) {
@@ -862,7 +882,6 @@ class AuthProvider extends ChangeNotifier {
           notifyListeners();
           debugPrint('✅ User data fetched successfully');
         } else {
-          // Create document if it doesn't exist
           await _createUserDocument(_user!.uid);
         }
       }
