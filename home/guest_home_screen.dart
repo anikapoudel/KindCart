@@ -8,11 +8,7 @@ import '../screens/shop_screen.dart';
 import '../screens/adddonation_screen.dart';
 import '../screens/about_screen.dart';
 import '../screens/chat_screen.dart';
-import '../screens/search_screen.dart';
-import '../screens/wishlist_screen.dart';
-import '../screens/profile_screen.dart';
 import '../screens/item_detail_screen.dart';
-import '../screens/chats_list_screen.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
 import '../providers/auth_provider.dart';
@@ -36,13 +32,12 @@ class HomeScreenState extends State<HomeScreen>
 
   final GlobalKey _fabKey = GlobalKey();
 
-  // Sample data for slider
   final List<Map<String, dynamic>> _slides = [
     {
       'title': '🌱 Sustainable Shopping',
       'subtitle': 'Give items a second life',
       'image': '🌍',
-      'color': Colors.green,
+      'color': const Color(0xFFE91E63),
       'buttonText': 'Shop Now',
       'destination': const ShopScreen(),
       'type': 'shop',
@@ -51,7 +46,7 @@ class HomeScreenState extends State<HomeScreen>
       'title': '🤝 Donate with Heart',
       'subtitle': 'Help those in need today',
       'image': '💝',
-      'color': Colors.orange,
+      'color': const Color(0xFFEC407A),
       'buttonText': 'Donate Now',
       'destination': const AddDonationScreen(),
       'type': 'donate',
@@ -60,7 +55,7 @@ class HomeScreenState extends State<HomeScreen>
       'title': '💰 Earn While Saving',
       'subtitle': 'Sell your pre-loved items',
       'image': '💰',
-      'color': Colors.blue,
+      'color': const Color(0xFFF06292),
       'buttonText': 'Start Selling',
       'destination': const AddProductScreen(),
       'type': 'sell',
@@ -72,14 +67,11 @@ class HomeScreenState extends State<HomeScreen>
     super.initState();
     _pageController = PageController();
 
-    // Auto slide for carousel
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startAutoSlide();
       Provider.of<ProductProvider>(context, listen: false).loadProducts();
-      // Boost image cache
       PaintingBinding.instance.imageCache.maximumSize = 100;
-      PaintingBinding.instance.imageCache.maximumSizeBytes =
-          100 << 20; // 100 MB
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20;
 
       final ImageProvider provider = const AssetImage('assets/screen1.gif');
       provider.resolve(createLocalImageConfiguration(context));
@@ -111,7 +103,6 @@ class HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Helper method to check if user is logged in and show dialog if not
   bool _checkAuthAndNavigate(BuildContext context, VoidCallback action) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.user == null) {
@@ -146,7 +137,7 @@ class HomeScreenState extends State<HomeScreen>
   }
 
   List<ProductModel> _getFeaturedProducts(List<ProductModel> products) =>
-      products.take(6).toList();
+      products.take(30).toList();
 
   List<ProductModel> _getDonationItems(List<ProductModel> products) =>
       products.where((p) => p.price == 0).take(5).toList();
@@ -164,7 +155,27 @@ class HomeScreenState extends State<HomeScreen>
     final productProvider = Provider.of<ProductProvider>(context);
 
     final isDark = themeProvider.isDarkMode;
-    final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF5F7F5);
+    // Updated pink gradient background
+    final bgGradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1A1A2E),
+              Color(0xFF2D1B2D),
+              Color(0xFF1A1A2E),
+            ],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFF0F5), // Lavender blush
+              Color(0xFFFFE4E1), // Misty rose
+              Color(0xFFFFF0F5),
+            ],
+          );
+
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -180,460 +191,266 @@ class HomeScreenState extends State<HomeScreen>
 
     final featuredProducts = _getFeaturedProducts(productProvider.products);
     final donationItems = _getDonationItems(productProvider.products);
-
-    // Detect if running on web (using screen width as indicator)
     final bool isWebLayout = screenWidth > 800;
 
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(88),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [
-                      const Color(0xFF1A1A2E),
-                      const Color(0xFF1B2F3B),
-                      const Color(0xFF1A1A2E),
-                    ]
-                  : [
-                      const Color(0xFFE8F5E9),
-                      const Color(0xFFF3E5F5),
-                      const Color(0xFFE8F5E9),
-                    ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              stops: const [0.0, 0.5, 1.0],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withAlpha(40)
-                    : Colors.black.withAlpha(12),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-                spreadRadius: 0,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-              child: SafeArea(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: bgGradient,
+        ),
+        child: Column(
+          children: [
+            // Custom Green/Pink Gradient Top Bar
+            _buildGreenPinkTopBar(
+                isDark, authProvider, themeProvider, displayName, isWebLayout),
+            Expanded(
+              child: RefreshIndicator(
+                color: const Color(0xFF4CAF50),
+                onRefresh: () => productProvider.loadProducts(),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Logo and Brand Section
-                      GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const AboutScreen()),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: isDark
-                                  ? [
-                                      Colors.green.shade300,
-                                      Colors.purple.shade300
-                                    ]
-                                  : [
-                                      Colors.green.shade400,
-                                      Colors.purple.shade400
-                                    ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (isDark
-                                        ? Colors.green.shade800
-                                        : Colors.green.shade200)
-                                    .withAlpha(80),
-                                blurRadius: 10,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Container(
-                            width: isWebLayout ? 46 : 40,
-                            height: isWebLayout ? 46 : 40,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(15),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/Logo.png',
-                                width: isWebLayout ? 46 : 40,
-                                height: isWebLayout ? 46 : 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.green.withAlpha(30),
-                                    child: Icon(
-                                      Icons.eco,
-                                      color: isDark
-                                          ? Colors.green[300]
-                                          : Colors.green[700],
-                                      size: isWebLayout ? 26 : 22,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Brand and Welcome Section
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 12),
+
+                      // Slider Section
+                      SizedBox(
+                        height: 220,
+                        child: Stack(
                           children: [
-                            ShaderMask(
-                              shaderCallback: (bounds) => LinearGradient(
-                                colors: isDark
-                                    ? [
-                                        Colors.green.shade300,
-                                        Colors.purple.shade300
-                                      ]
-                                    : [
-                                        const Color(0xFF2E7D32),
-                                        const Color(0xFF7B1FA2)
+                            PageView.builder(
+                              controller: _pageController,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentSlide = index;
+                                });
+                              },
+                              itemCount: _slides.length,
+                              itemBuilder: (context, index) {
+                                final slide = _slides[index];
+                                return Container(
+                                  margin: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        slide['color'] as Color,
+                                        (slide['color'] as Color)
+                                            .withAlpha(180),
                                       ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ).createShader(bounds),
-                              child: Text(
-                                'KindCart',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: isWebLayout ? 22 : 19,
-                                  letterSpacing: 0.5,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: isDark
-                                      ? [
-                                          Colors.green.shade900.withAlpha(60),
-                                          Colors.purple.shade900.withAlpha(60)
-                                        ]
-                                      : [
-                                          Colors.green.shade50,
-                                          Colors.purple.shade50
-                                        ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: isDark
-                                      ? Colors.grey[800]!
-                                      : Colors.grey[200]!,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.waving_hand_rounded,
-                                    size: isWebLayout ? 14 : 12,
-                                    color: isDark
-                                        ? Colors.green[300]
-                                        : Colors.green[600],
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      authProvider.user != null
-                                          ? 'Welcome back, $displayName'
-                                          : 'Welcome, User',
-                                      style: TextStyle(
-                                        fontSize: isWebLayout ? 11 : 10,
-                                        fontWeight: FontWeight.w500,
-                                        color: isDark
-                                            ? Colors.grey[300]
-                                            : Colors.grey[700],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (slide['color'] as Color)
+                                            .withAlpha(77),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 5),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
+                                    ],
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Positioned(
+                                        right: -20,
+                                        bottom: -20,
+                                        child: Text(
+                                          slide['image'] as String,
+                                          style: const TextStyle(
+                                              fontSize: 120,
+                                              color: Colors.white12),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                slide['title'] as String,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                slide['subtitle'] as String,
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withAlpha(230),
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 20),
+                                              ElevatedButton(
+                                                onPressed: () {
+                                                  final type =
+                                                      slide['type'] as String;
+                                                  switch (type) {
+                                                    case 'shop':
+                                                      NavigationHelper
+                                                          .goToShopScreen(
+                                                              context);
+                                                      break;
+                                                    case 'donate':
+                                                      _checkAuthAndNavigate(
+                                                          context, () {
+                                                        NavigationHelper
+                                                            .goToDonateScreen(
+                                                                context);
+                                                      });
+                                                      break;
+                                                    case 'sell':
+                                                      _checkAuthAndNavigate(
+                                                          context, () {
+                                                        NavigationHelper
+                                                            .goToSellScreen(
+                                                                context);
+                                                      });
+                                                      break;
+                                                  }
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.white,
+                                                  foregroundColor:
+                                                      slide['color'] as Color,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            30),
+                                                  ),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 20,
+                                                      vertical: 10),
+                                                ),
+                                                child: Text(slide['buttonText']
+                                                    as String),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            Positioned(
+                              bottom: 20,
+                              left: 0,
+                              right: 0,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(
+                                  _slides.length,
+                                  (index) => Container(
+                                    width: 8,
+                                    height: 8,
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 4),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _currentSlide == index
+                                          ? const Color(0xFF4CAF50)
+                                          : Colors.grey.withAlpha(128),
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    authProvider.user != null ? '✨' : '👋',
-                                    style: TextStyle(
-                                        fontSize: isWebLayout ? 12 : 11),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      // Action Buttons
-                      if (isWebLayout)
-                        _buildWebActionButtons(
-                            themeProvider, isDark, authProvider)
-                      else
-                        _buildAndroidActionButtons(
-                            themeProvider, isDark, authProvider),
+
+                      const SizedBox(height: 12),
+
+                      // Featured Items
+                      _SectionHeader(
+                        title: 'Featured Items',
+                        actionLabel: 'See All',
+                        onAction: () =>
+                            NavigationHelper.goToShopScreen(context),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Grid with proper sizing
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            childAspectRatio: isWebLayout ? 0.6 : 0.35,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                          itemCount: productProvider.isLoading
+                              ? 6
+                              : featuredProducts.length,
+                          itemBuilder: (context, index) {
+                            if (productProvider.isLoading) {
+                              return _buildShimmerCard(isDark);
+                            }
+                            if (index >= featuredProducts.length) {
+                              return const SizedBox();
+                            }
+                            return _buildProductCard(
+                                featuredProducts[index], isDark, cardColor);
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Free Donations
+                      if (donationItems.isNotEmpty) ...[
+                        _SectionHeader(
+                          title: 'Free Donations',
+                          actionLabel: 'View All',
+                          onAction: () =>
+                              NavigationHelper.goToDonateScreen(context),
+                          leadingIcon: Icons.volunteer_activism_rounded,
+                          iconColor: const Color(0xFF4CAF50),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 185,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: donationItems.length,
+                            itemBuilder: (context, index) => _buildDonationCard(
+                                donationItems[index], isDark, cardColor),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+
+                      const SizedBox(height: 30),
+
+                      // Footer
+                      if (isWebLayout) _buildCompactFooter(isDark, context),
                     ],
                   ),
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        color: Colors.green,
-        onRefresh: () => productProvider.loadProducts(),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 12),
-
-              // Slider Section
-              SizedBox(
-                height: 220,
-                child: Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentSlide = index;
-                        });
-                      },
-                      itemCount: _slides.length,
-                      itemBuilder: (context, index) {
-                        final slide = _slides[index];
-                        return Container(
-                          margin: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                slide['color'] as Color,
-                                (slide['color'] as Color).withAlpha(180),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (slide['color'] as Color).withAlpha(77),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                right: -20,
-                                bottom: -20,
-                                child: Text(
-                                  slide['image'] as String,
-                                  style: const TextStyle(
-                                      fontSize: 120, color: Colors.white12),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        slide['title'] as String,
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        slide['subtitle'] as String,
-                                        style: TextStyle(
-                                          color: Colors.white.withAlpha(230),
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 20),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          // Use type-based navigation
-                                          final type = slide['type'] as String;
-                                          switch (type) {
-                                            case 'shop':
-                                              NavigationHelper.goToShopScreen(
-                                                  context);
-                                              break;
-                                            case 'donate':
-                                              _checkAuthAndNavigate(context,
-                                                  () {
-                                                NavigationHelper
-                                                    .goToDonateScreen(context);
-                                              });
-                                              break;
-                                            case 'sell':
-                                              _checkAuthAndNavigate(context,
-                                                  () {
-                                                NavigationHelper.goToSellScreen(
-                                                    context);
-                                              });
-                                              break;
-                                          }
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          foregroundColor:
-                                              slide['color'] as Color,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(30),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 20, vertical: 10),
-                                        ),
-                                        child:
-                                            Text(slide['buttonText'] as String),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    Positioned(
-                      bottom: 20,
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          _slides.length,
-                          (index) => Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _currentSlide == index
-                                  ? Colors.green
-                                  : Colors.grey.withAlpha(128),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Featured Items
-              _SectionHeader(
-                title: 'Featured Items',
-                actionLabel: 'See All',
-                onAction: () => NavigationHelper.goToShopScreen(context),
-              ),
-
-              const SizedBox(height: 12),
-
-              // grid with proper sizing
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    childAspectRatio: isWebLayout ? 0.6 : 0.35,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount:
-                      productProvider.isLoading ? 6 : featuredProducts.length,
-                  itemBuilder: (context, index) {
-                    if (productProvider.isLoading) {
-                      return _buildShimmerCard(isDark);
-                    }
-                    if (index >= featuredProducts.length) {
-                      return const SizedBox();
-                    }
-                    return _buildProductCard(
-                        featuredProducts[index], isDark, cardColor);
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Free Donations
-              if (donationItems.isNotEmpty) ...[
-                _SectionHeader(
-                  title: 'Free Donations',
-                  actionLabel: 'View All',
-                  onAction: () => NavigationHelper.goToDonateScreen(context),
-                  leadingIcon: Icons.volunteer_activism_rounded,
-                  iconColor: Colors.green,
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 185,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: donationItems.length,
-                    itemBuilder: (context, index) => _buildDonationCard(
-                        donationItems[index], isDark, cardColor),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              const SizedBox(height: 30),
-
-              // Compact Footer
-              _buildCompactFooter(isDark, context),
-            ],
-          ),
+          ],
         ),
       ),
 
@@ -661,12 +478,11 @@ class HomeScreenState extends State<HomeScreen>
         ),
         child: FloatingActionButton.extended(
           onPressed: () {
-            // Help feature
             debugPrint('Help button pressed');
             ChatScreen.showAnchored(
               context: context,
               anchorKey: _fabKey,
-              height: 600.0,
+              height: 490.0,
             );
           },
           backgroundColor: Colors.transparent,
@@ -682,6 +498,196 @@ class HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // Green/Pink Gradient Top Bar Widget
+  Widget _buildGreenPinkTopBar(bool isDark, AuthProvider authProvider,
+      ThemeProvider themeProvider, String displayName, bool isWebLayout) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF2E7D32), // Deep Green
+            Color(0xFF4CAF50), // Green
+            Color(0xFFE91E63), // Pink
+            Color(0xFFF06292), // Light Pink
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.3, 0.7, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2E7D32).withAlpha(40),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  // Logo and Brand Section
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AboutScreen()),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Colors.white, Colors.white70],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.white.withAlpha(80),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        width: isWebLayout ? 46 : 40,
+                        height: isWebLayout ? 46 : 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withAlpha(15),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/Logo.png',
+                            width: isWebLayout ? 46 : 40,
+                            height: isWebLayout ? 46 : 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.green.withAlpha(30),
+                                child: Icon(
+                                  Icons.eco,
+                                  color: Colors.green[700],
+                                  size: isWebLayout ? 26 : 22,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Brand and Welcome Section
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (bounds) => const LinearGradient(
+                            colors: [Colors.white, Colors.white70],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(bounds),
+                          child: Text(
+                            'KindCart',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isWebLayout ? 22 : 19,
+                              letterSpacing: 0.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isDark
+                                  ? [
+                                      Colors.green.shade900.withAlpha(60),
+                                      Colors.pink.shade900.withAlpha(60)
+                                    ]
+                                  : [
+                                      Colors.white.withAlpha(60),
+                                      Colors.white.withAlpha(60)
+                                    ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.grey[800]!
+                                  : Colors.white.withAlpha(100),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.waving_hand_rounded,
+                                size: isWebLayout ? 14 : 12,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  authProvider.user != null
+                                      ? 'Welcome back, $displayName'
+                                      : 'Welcome, User',
+                                  style: TextStyle(
+                                    fontSize: isWebLayout ? 11 : 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                authProvider.user != null ? '✨' : '👋',
+                                style:
+                                    TextStyle(fontSize: isWebLayout ? 12 : 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Action Buttons
+                  if (isWebLayout)
+                    _buildWebActionButtons(themeProvider, isDark, authProvider)
+                  else
+                    _buildAndroidActionButtons(
+                        themeProvider, isDark, authProvider),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // Compact Footer Widget
   Widget _buildCompactFooter(bool isDark, BuildContext context) {
     return Container(
@@ -691,7 +697,7 @@ class HomeScreenState extends State<HomeScreen>
         gradient: LinearGradient(
           colors: isDark
               ? [const Color(0xFF1A1A2E), const Color(0xFF16213E)]
-              : [const Color(0xFF1B5E20), const Color(0xFF0D47A1)],
+              : [const Color(0xFF2E7D32), const Color(0xFF4CAF50)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -732,14 +738,14 @@ class HomeScreenState extends State<HomeScreen>
                 children: const [
                   Icon(
                     Icons.menu_book_rounded,
-                    color: Color(0xFF1B5E20),
+                    color: Color(0xFF2E7D32),
                     size: 18,
                   ),
                   SizedBox(width: 8),
                   Text(
                     'Our Mission - About Us',
                     style: TextStyle(
-                      color: Color(0xFF1B5E20),
+                      color: Color(0xFF2E7D32),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -893,14 +899,17 @@ class HomeScreenState extends State<HomeScreen>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [const Color(0xFF1A1A1A), const Color(0xFF2D1B2D)]
-              : [Colors.white, const Color(0xFFFFF0F5)],
+              ? [const Color(0xFF1A1A1A), const Color(0xFF1B2E1B)]
+              : [
+                  const Color(0xFFE8F5F9), // Very Light Green
+                  const Color(0xFFC8E6C9) // Light Green
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(15),
+            color: const Color(0xFF4CAF50).withAlpha(30),
             blurRadius: 12,
             offset: const Offset(0, -2),
           ),
@@ -931,11 +940,18 @@ class HomeScreenState extends State<HomeScreen>
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF7B2D8B),
-        unselectedItemColor: isDark ? Colors.grey[600] : Colors.grey[400],
-        selectedLabelStyle:
-            const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
-        unselectedLabelStyle: const TextStyle(fontSize: 10),
+        selectedItemColor: const Color(0xFF2E7D32),
+        unselectedItemColor:
+            isDark ? Colors.grey[600] : const Color(0xFF66BB6A),
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+          color: Color(0xFF2E7D32),
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 10,
+          color: Color(0xFF66BB6A),
+        ),
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
@@ -1024,7 +1040,7 @@ class HomeScreenState extends State<HomeScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade700,
+                          color: const Color(0xFF4CAF50),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -1051,7 +1067,7 @@ class HomeScreenState extends State<HomeScreen>
                       product.category,
                       style: const TextStyle(
                         fontSize: 9,
-                        color: Colors.green,
+                        color: Color(0xFF4CAF50),
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.3,
                       ),
@@ -1080,8 +1096,8 @@ class HomeScreenState extends State<HomeScreen>
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: product.price == 0
-                                ? Colors.green[600]
-                                : Colors.green[700],
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFF4CAF50),
                           ),
                         ),
                       ],
@@ -1131,7 +1147,7 @@ class HomeScreenState extends State<HomeScreen>
       case 'Good':
         return Colors.blue;
       case 'Fair':
-        return Colors.orange;
+        return const Color(0xFF4CAF50);
       case 'Needs Repair':
         return Colors.red;
       default:
@@ -1208,7 +1224,7 @@ class HomeScreenState extends State<HomeScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade600,
+                        color: const Color(0xFF4CAF50),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text('FREE',
@@ -1244,7 +1260,7 @@ class HomeScreenState extends State<HomeScreen>
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: Colors.green[600]),
+                          color: const Color(0xFF4CAF50)),
                     ),
                     const SizedBox(height: 2),
                     Text(item.condition,
@@ -1324,7 +1340,7 @@ class HomeScreenState extends State<HomeScreen>
   }
 }
 
-//  Icon Button
+// Elegant Icon Button
 class _ElegantIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -1384,13 +1400,14 @@ class _ElegantIconButton extends StatelessWidget {
           ),
           icon: Icon(
             icon,
-            color: isDark ? Colors.grey[300] : Colors.grey[700],
+            color: isDark ? Colors.grey[300] : const Color(0xFF4CAF50),
             size: iconSize,
           ),
           onPressed: onTap,
           splashRadius: iconSize + 6,
-          splashColor:
-              isDark ? Colors.white.withAlpha(20) : Colors.green.withAlpha(30),
+          splashColor: isDark
+              ? Colors.white.withAlpha(20)
+              : const Color(0xFF4CAF50).withAlpha(30),
           highlightColor: Colors.transparent,
         ),
       ),
@@ -1398,7 +1415,7 @@ class _ElegantIconButton extends StatelessWidget {
   }
 }
 
-//  Badge Button
+// Elegant Badge Button
 class _ElegantBadgeButton extends StatelessWidget {
   final IconData icon;
   final int badgeCount;
@@ -1463,14 +1480,14 @@ class _ElegantBadgeButton extends StatelessWidget {
               ),
               icon: Icon(
                 icon,
-                color: isDark ? Colors.grey[300] : Colors.grey[700],
+                color: isDark ? Colors.grey[300] : const Color(0xFF4CAF50),
                 size: iconSize,
               ),
               onPressed: onTap,
               splashRadius: iconSize + 6,
               splashColor: isDark
                   ? Colors.white.withAlpha(20)
-                  : Colors.green.withAlpha(30),
+                  : const Color(0xFF4CAF50).withAlpha(30),
               highlightColor: Colors.transparent,
             ),
           ),
@@ -1481,10 +1498,8 @@ class _ElegantBadgeButton extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark
-                        ? [Colors.red[400]!, Colors.red[600]!]
-                        : [Colors.red[500]!, Colors.red[700]!],
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -1495,7 +1510,7 @@ class _ElegantBadgeButton extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withAlpha(50),
+                      color: const Color(0xFF4CAF50).withAlpha(50),
                       blurRadius: 4,
                       spreadRadius: 0,
                     ),
@@ -1519,7 +1534,7 @@ class _ElegantBadgeButton extends StatelessWidget {
   }
 }
 
-//  section header
+// Elegant section header
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String actionLabel;
@@ -1551,14 +1566,14 @@ class _SectionHeader extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        (iconColor ?? Colors.green).withAlpha(25),
-                        (iconColor ?? Colors.green).withAlpha(50),
+                        (iconColor ?? const Color(0xFF4CAF50)).withAlpha(25),
+                        (iconColor ?? const Color(0xFF4CAF50)).withAlpha(50),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(leadingIcon,
-                      color: iconColor ?? Colors.green, size: 16),
+                      color: iconColor ?? const Color(0xFF4CAF50), size: 16),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -1575,7 +1590,7 @@ class _SectionHeader extends StatelessWidget {
           TextButton(
             onPressed: onAction,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF7B2D8B),
+              foregroundColor: const Color(0xFF4CAF50),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
