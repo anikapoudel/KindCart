@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-
-//  relative imports
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
 import 'theme_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/product_provider.dart';
 import 'providers/wishlist_provider.dart';
+import 'providers/donation_provider.dart';
+import 'providers/order_provider.dart';
+import 'providers/chat_provider.dart';
+import 'providers/announcement_provider.dart';
+import 'home/role_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with options
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -22,22 +23,92 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => CartProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProductProvider()),
         ChangeNotifierProvider(create: (_) => WishlistProvider()),
-
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider(), // Add AuthProvider
-        ),
+        ChangeNotifierProvider(create: (_) => DonationProvider()),
+        ChangeNotifierProvider(create: (_) => OrderProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => AnnouncementProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
-      child: const MyApp(),
+      child: const AppWrapper(),
     ),
   );
+}
+
+class AppWrapper extends StatefulWidget {
+  const AppWrapper({super.key});
+
+  @override
+  State<AppWrapper> createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends State<AppWrapper> {
+  String? _lastLoadedUid;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final wishlistProvider =
+          Provider.of<WishlistProvider>(context, listen: false);
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      authProvider.registerCartCallbacks(
+        onSaveCartBeforeLogout: () async {
+          await cartProvider.saveCartBeforeLogout();
+          debugPrint('🛒 Cart saved before logout via callback');
+        },
+        onClearCartOnLogout: () async {
+          debugPrint('🛒 Cart cleared on logout via callback');
+        },
+        onSetCartUserId: (userId) {
+          cartProvider.setCurrentUser(userId);
+          debugPrint('🛒 Cart user ID set to: $userId');
+        },
+      );
+
+      authProvider.addListener(() async {
+        if (authProvider.isAuthenticated && authProvider.user != null) {
+          final uid = authProvider.user!.uid;
+          if (_lastLoadedUid == uid) return;
+          _lastLoadedUid = uid;
+
+          debugPrint('🔄 Auth changed → loading wishlist for $uid');
+
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          if (mounted) {
+            wishlistProvider.loadWishlist(uid);
+          }
+        } else {
+          // User logged out
+          _lastLoadedUid = null;
+          debugPrint('🔄 Auth changed → clearing wishlist');
+          wishlistProvider.clearLocalWishlist();
+        }
+      });
+
+      if (authProvider.isAuthenticated && authProvider.user != null) {
+        _lastLoadedUid = authProvider.user!.uid;
+
+        cartProvider.setCurrentUser(authProvider.user!.uid);
+
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            wishlistProvider.loadWishlist(authProvider.user!.uid);
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const MyApp();
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -50,29 +121,19 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'KindCart',
       debugShowCheckedModeBanner: false,
-
-      // Using themeMode to switch between light/dark
       themeMode: themeProvider.themeMode,
-
-      // === LIGHT THEME
       theme: ThemeData(
         useMaterial3: true,
-
-        // Color scheme for light mode
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.green,
           brightness: Brightness.light,
         ),
-
-        // App bar theme - light mode
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 1,
           centerTitle: false,
         ),
-
-        // Bottom navigation theme - light mode
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
           selectedItemColor: Colors.green,
@@ -81,8 +142,6 @@ class MyApp extends StatelessWidget {
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
         ),
-
-        // Elevated button theme - light mode
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
@@ -93,8 +152,6 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // Text theme - light mode
         textTheme: const TextTheme(
           displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           displayMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -103,26 +160,18 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(fontSize: 14),
         ),
       ),
-
-      // === DARK THEME
       darkTheme: ThemeData(
         useMaterial3: true,
-
-        // Color scheme for dark mode
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.green,
           brightness: Brightness.dark,
         ),
-
-        // App bar theme - dark mode
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.grey[900],
           foregroundColor: Colors.white,
           elevation: 1,
           centerTitle: false,
         ),
-
-        // Bottom navigation theme - dark mode
         bottomNavigationBarTheme: BottomNavigationBarThemeData(
           backgroundColor: Colors.grey[900],
           selectedItemColor: Colors.green[300],
@@ -131,8 +180,6 @@ class MyApp extends StatelessWidget {
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
         ),
-
-        // Elevated button theme - dark mode
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green[700],
@@ -143,23 +190,21 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // Text theme - dark mode (with adjusted colors)
         textTheme: TextTheme(
-          displayLarge: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-          displayMedium: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          titleLarge: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          displayLarge:
+              const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          displayMedium:
+              const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          titleLarge:
+              const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           bodyLarge: TextStyle(fontSize: 16, color: Colors.grey[300]),
           bodyMedium: TextStyle(fontSize: 14, color: Colors.grey[400]),
         ),
-
-        // Additional dark mode specific settings
         scaffoldBackgroundColor: Colors.grey[900],
         cardColor: Colors.grey[850],
         dividerColor: Colors.grey[800],
       ),
-
-      home: const HomeScreen(),
+      home: const RoleRouter(),
     );
   }
 }
