@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/chat_model.dart';
-import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 class UserChatScreen extends StatefulWidget {
@@ -321,46 +320,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
             ),
           ),
 
-          // Order Info Bar
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('chats')
-                .doc(widget.chatId)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.shrink();
-
-              final data = snapshot.data!.data() as Map<String, dynamic>?;
-              final orderId = data?['orderId'];
-
-              if (orderId != null) {
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  color: Colors.blue.shade50,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info, color: Colors.blue, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Order #$orderId',
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // Navigate to order details
-                        },
-                        child: const Text('View'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-          ),
-
           // Image uploading indicator
           if (_isSendingImage)
             Container(
@@ -487,48 +446,52 @@ class _UserChatScreenState extends State<UserChatScreen> {
             // Image or text content
             if (isImage)
               GestureDetector(
-                onTap: () => _viewFullImage(message.content),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    message.content,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return Container(
-                        width: 200,
-                        height: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: progress.expectedTotalBytes != null
-                                ? progress.cumulativeBytesLoaded /
-                                    progress.expectedTotalBytes!
-                                : null,
-                            color: Colors.green,
+                  onTap: () => _viewFullImage(message.content),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 200,
+                        maxHeight: 200,
+                      ),
+                      child: Image.network(
+                        message.content,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            width: 200,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded /
+                                        progress.expectedTotalBytes!
+                                    : null,
+                                color: Colors.green,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 200,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.broken_image,
+                                color: Colors.grey, size: 40),
                           ),
                         ),
-                      );
-                    },
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 200,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.broken_image,
-                            color: Colors.grey, size: 40),
                       ),
                     ),
-                  ),
-                ),
-              )
+                  ))
             else
               Text(
                 message.content,
