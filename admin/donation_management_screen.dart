@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/donation_provider.dart';
 import '../models/donation_model.dart';
 
@@ -7,10 +8,12 @@ class DonationManagementScreen extends StatefulWidget {
   const DonationManagementScreen({Key? key}) : super(key: key);
 
   @override
-  State<DonationManagementScreen> createState() => _DonationManagementScreenState();
+  State<DonationManagementScreen> createState() =>
+      _DonationManagementScreenState();
 }
 
-class _DonationManagementScreenState extends State<DonationManagementScreen> with SingleTickerProviderStateMixin {
+class _DonationManagementScreenState extends State<DonationManagementScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedIndex = 0;
 
@@ -86,7 +89,6 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           ),
         ],
       ),
-
       body: Column(
         children: [
           // Search and Filter Bar
@@ -116,13 +118,6 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           ),
         ],
       ),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showQuickStats,
-        icon: const Icon(Icons.analytics),
-        label: const Text('Stats'),
-        backgroundColor: Colors.deepPurple,
-      ),
     );
   }
 
@@ -141,12 +136,12 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
               prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() => _searchQuery = '');
-                },
-              )
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
                   : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -163,10 +158,12 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
 
           const SizedBox(height: 12),
 
-          Container(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
+          // Centered wrap layout
+          Center(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 FilterChip(
                   label: const Text('All Categories'),
@@ -178,21 +175,26 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                   selectedColor: Colors.deepPurple.shade100,
                   checkmarkColor: Colors.deepPurple,
                 ),
-                const SizedBox(width: 8),
-                ...['Clothing', 'Books', 'Toys', 'Kitchenware', 'Electronics', 'Furniture', 'Food', 'Other']
-                    .map((category) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(category),
-                    selected: _categoryFilter == category,
-                    onSelected: (selected) {
-                      setState(() => _categoryFilter = selected ? category : null);
-                    },
-                    backgroundColor: Colors.white,
-                    selectedColor: Colors.deepPurple.shade100,
-                    checkmarkColor: Colors.deepPurple,
-                  ),
-                )),
+                ...[
+                  'Clothing',
+                  'Books',
+                  'Toys',
+                  'Kitchenware',
+                  'Electronics',
+                  'Furniture',
+                  'Food',
+                  'Other'
+                ].map((category) => FilterChip(
+                      label: Text(category),
+                      selected: _categoryFilter == category,
+                      onSelected: (selected) {
+                        setState(
+                            () => _categoryFilter = selected ? category : null);
+                      },
+                      backgroundColor: Colors.white,
+                      selectedColor: Colors.deepPurple.shade100,
+                      checkmarkColor: Colors.deepPurple,
+                    )),
               ],
             ),
           ),
@@ -201,7 +203,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  STATS SUMMARY
+  // STATS SUMMARY
   Widget _buildStatsSummary() {
     return Consumer<DonationProvider>(
       builder: (context, provider, child) {
@@ -283,7 +285,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  PENDING TAB
+  // PENDING TAB
   Widget _buildPendingTab() {
     return Consumer<DonationProvider>(
       builder: (context, provider, child) {
@@ -354,7 +356,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  APPROVED TAB
+  // APPROVED TAB
   Widget _buildApprovedTab() {
     return Consumer<DonationProvider>(
       builder: (context, provider, child) {
@@ -364,7 +366,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           return _buildEmptyState(
             icon: Icons.thumb_up,
             title: 'No Approved Donations',
-            message: 'Approved donations waiting to be completed will appear here',
+            message:
+                'Approved donations waiting to be completed will appear here',
             color: Colors.blue,
           );
         }
@@ -414,7 +417,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  COMPLETED TAB
+  // COMPLETED TAB
   Widget _buildCompletedTab() {
     return Consumer<DonationProvider>(
       builder: (context, provider, child) {
@@ -464,7 +467,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  REJECTED TAB
+  // REJECTED TAB
   Widget _buildRejectedTab() {
     return Consumer<DonationProvider>(
       builder: (context, provider, child) {
@@ -502,7 +505,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  DONATION CARD
+  // DONATION CARD
   Widget _buildDonationCard({
     required DonationModel donation,
     required Color statusColor,
@@ -577,7 +580,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: statusColor.withAlpha(26),
                                 borderRadius: BorderRadius.circular(10),
@@ -585,7 +589,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(statusIcon, size: 10, color: statusColor),
+                                  Icon(statusIcon,
+                                      size: 10, color: statusColor),
                                   const SizedBox(width: 2),
                                   Text(
                                     donation.status.toString().split('.').last,
@@ -605,12 +610,16 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         // Donor info
                         Row(
                           children: [
-                            Icon(Icons.person, size: 12, color: Colors.grey[600]),
+                            Icon(Icons.person,
+                                size: 12, color: Colors.grey[600]),
                             const SizedBox(width: 2),
                             Expanded(
                               child: Text(
-                                donation.isAnonymous ? 'Anonymous Donor' : donation.donorName,
-                                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                                donation.isAnonymous
+                                    ? 'Anonymous Donor'
+                                    : donation.donorName,
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 11),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -622,12 +631,14 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         // Category & Quantity
                         Row(
                           children: [
-                            Icon(Icons.category, size: 12, color: Colors.grey[600]),
+                            Icon(Icons.category,
+                                size: 12, color: Colors.grey[600]),
                             const SizedBox(width: 2),
                             Expanded(
                               child: Text(
                                 '${donation.category} • ${donation.quantity} items • ${donation.condition}',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 11),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -639,12 +650,14 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         // Location
                         Row(
                           children: [
-                            Icon(Icons.location_on, size: 12, color: Colors.grey[600]),
+                            Icon(Icons.location_on,
+                                size: 12, color: Colors.grey[600]),
                             const SizedBox(width: 2),
                             Expanded(
                               child: Text(
                                 donation.location,
-                                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 11),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -682,11 +695,14 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                             padding: const EdgeInsets.only(top: 2),
                             child: Row(
                               children: [
-                                Icon(Icons.image, size: 10, color: Colors.deepPurple[300]),
+                                Icon(Icons.image,
+                                    size: 10, color: Colors.deepPurple[300]),
                                 const SizedBox(width: 2),
                                 Text(
                                   '${donation.donorImageUrls.length} image${donation.donorImageUrls.length > 1 ? 's' : ''}',
-                                  style: TextStyle(color: Colors.deepPurple[300], fontSize: 9),
+                                  style: TextStyle(
+                                      color: Colors.deepPurple[300],
+                                      fontSize: 9),
                                 ),
                               ],
                             ),
@@ -716,7 +732,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  DONOR DETAILS DIALOG
+  // DONOR DETAILS DIALOG
   void _showDonorDetailsDialog(BuildContext context, DonationModel donation) {
     showDialog(
       context: context,
@@ -735,7 +751,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.deepPurple,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Row(
                   children: [
@@ -743,7 +760,9 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                       backgroundColor: Colors.white,
                       child: Text(
                         donation.donorName[0].toUpperCase(),
-                        style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -752,12 +771,19 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            donation.isAnonymous ? 'Anonymous Donor' : donation.donorName,
-                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            donation.isAnonymous
+                                ? 'Anonymous Donor'
+                                : donation.donorName,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold),
                           ),
                           Text(
                             'Donor ID: ${donation.donorId.substring(0, 8)}...',
-                            style: TextStyle(color: Colors.white.withAlpha(179), fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.white.withAlpha(179),
+                                fontSize: 12),
                           ),
                         ],
                       ),
@@ -781,7 +807,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                       if (donation.donorImageUrls.isNotEmpty) ...[
                         const Text(
                           'Donation Images',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         Container(
@@ -791,14 +818,16 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                             itemCount: donation.donorImageUrls.length,
                             itemBuilder: (imgCtx, imgIndex) {
                               return GestureDetector(
-                                onTap: () => _showFullImage(context, donation.donorImageUrls[imgIndex]),
+                                onTap: () => _showFullImage(
+                                    context, donation.donorImageUrls[imgIndex]),
                                 child: Container(
                                   width: 120,
                                   margin: const EdgeInsets.only(right: 8),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8),
                                     image: DecorationImage(
-                                      image: NetworkImage(donation.donorImageUrls[imgIndex]),
+                                      image: NetworkImage(
+                                          donation.donorImageUrls[imgIndex]),
                                       fit: BoxFit.cover,
                                       onError: (exception, stackTrace) {},
                                     ),
@@ -809,7 +838,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                                       color: Colors.black12,
                                     ),
                                     child: const Center(
-                                      child: Icon(Icons.image, color: Colors.white54, size: 30),
+                                      child: Icon(Icons.image,
+                                          color: Colors.white54, size: 30),
                                     ),
                                   ),
                                 ),
@@ -824,19 +854,21 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                       // Contact Information
                       const Text(
                         'Contact Information',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       _buildInfoTile(
                         icon: Icons.person_outline,
                         label: 'Donor Name',
-                        value: donation.isAnonymous ? 'Anonymous' : donation.donorName,
+                        value: donation.isAnonymous
+                            ? 'Anonymous'
+                            : donation.donorName,
                       ),
-                      _buildInfoTile(
+                      _buildContactInfoTile(
                         icon: Icons.phone,
                         label: 'Contact Number',
                         value: donation.contact,
-                        isContact: true,
                       ),
                       _buildInfoTile(
                         icon: Icons.location_on,
@@ -850,7 +882,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                       // Donation Details
                       const Text(
                         'Donation Details',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       _buildInfoTile(
@@ -885,7 +918,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                       // Additional Details
                       const Text(
                         'Additional Information',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 12),
                       _buildInfoTile(
@@ -900,16 +934,22 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         value: _formatDateTime(donation.createdAt),
                       ),
                       _buildInfoTile(
-                        icon: donation.canPickup ? Icons.check_circle : Icons.cancel,
+                        icon: donation.canPickup
+                            ? Icons.check_circle
+                            : Icons.cancel,
                         label: 'Can Pickup',
                         value: donation.canPickup ? 'Yes' : 'No',
-                        valueColor: donation.canPickup ? Colors.green : Colors.red,
+                        valueColor:
+                            donation.canPickup ? Colors.green : Colors.red,
                       ),
                       _buildInfoTile(
-                        icon: donation.canDeliver ? Icons.check_circle : Icons.cancel,
+                        icon: donation.canDeliver
+                            ? Icons.check_circle
+                            : Icons.cancel,
                         label: 'Can Deliver',
                         value: donation.canDeliver ? 'Yes' : 'No',
-                        valueColor: donation.canDeliver ? Colors.green : Colors.red,
+                        valueColor:
+                            donation.canDeliver ? Colors.green : Colors.red,
                       ),
 
                       // Clothing specific details
@@ -918,7 +958,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                         const Divider(),
                         const Text(
                           'Clothing Details',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         if (donation.brand != null)
@@ -963,7 +1004,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.warning, color: Colors.red, size: 20),
+                                  Icon(Icons.warning,
+                                      color: Colors.red, size: 20),
                                   SizedBox(width: 8),
                                   Text(
                                     'Rejection Reason',
@@ -1038,7 +1080,46 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     required String label,
     required String value,
     Color? valueColor,
-    bool isContact = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.deepPurple[300]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: valueColor ?? Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Contact info tile with phone and message buttons
+  Widget _buildContactInfoTile({
+    required IconData icon,
+    required String label,
+    required String value,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1064,29 +1145,25 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                     Expanded(
                       child: Text(
                         value,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: isContact ? FontWeight.bold : FontWeight.normal,
-                          color: valueColor ?? (isContact ? Colors.blue : Colors.black87),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
                         ),
                       ),
                     ),
-                    if (isContact)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.phone, size: 18, color: Colors.green),
-                            onPressed: () => _makePhoneCall(value),
-                            tooltip: 'Call',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.message, size: 18, color: Colors.blue),
-                            onPressed: () => _sendMessage(value),
-                            tooltip: 'Message',
-                          ),
-                        ],
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.phone,
+                          size: 18, color: Colors.green),
+                      onPressed: () => _makePhoneCall(value),
+                      tooltip: 'Call',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.message,
+                          size: 18, color: Colors.blue),
+                      onPressed: () => _sendMessage(value),
+                      tooltip: 'Message',
+                    ),
                   ],
                 ),
               ],
@@ -1137,7 +1214,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  EMPTY STATE
+  // EMPTY STATE
   Widget _buildEmptyState({
     required IconData icon,
     required String title,
@@ -1172,14 +1249,15 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  DIALOGS
+  // DIALOGS
 
   void _showQuickApproveDialog(BuildContext context, DonationModel donation) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Approve Donation'),
-        content: Text('Approve "${donation.title}" from ${donation.donorName}?'),
+        content:
+            Text('Approve "${donation.title}" from ${donation.donorName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1188,7 +1266,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final provider = Provider.of<DonationProvider>(context, listen: false);
+              final provider =
+                  Provider.of<DonationProvider>(context, listen: false);
               await provider.approveDonation(donation.id);
               await provider.loadAllDonations();
 
@@ -1223,7 +1302,8 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Contact ${donation.isAnonymous ? 'Anonymous Donor' : donation.donorName}:'),
+            Text(
+                'Contact ${donation.isAnonymous ? 'Anonymous Donor' : donation.donorName}:'),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.phone, color: Colors.green),
@@ -1303,47 +1383,49 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
               onPressed: isLoading
                   ? null
                   : () async {
-                if (recipientController.text.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter recipient info'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
+                      if (recipientController.text.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter recipient info'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                setState(() => isLoading = true);
+                      setState(() => isLoading = true);
 
-                final provider = Provider.of<DonationProvider>(context, listen: false);
-                await provider.completeDonation(
-                  donationId: donation.id,
-                  proofImageUrl: imageController.text,
-                  recipientInfo: recipientController.text,
-                );
-                await provider.loadAllDonations();
+                      final provider =
+                          Provider.of<DonationProvider>(context, listen: false);
+                      await provider.completeDonation(
+                        donationId: donation.id,
+                        proofImageUrl: imageController.text,
+                        recipientInfo: recipientController.text,
+                      );
+                      await provider.loadAllDonations();
 
-                if (ctx.mounted) Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
 
-                if (!mounted) return;
+                      if (!mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${donation.title} marked completed!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${donation.title} marked completed!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
               child: isLoading
                   ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
                   : const Text('Complete'),
             ),
           ],
@@ -1389,43 +1471,46 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
               onPressed: isLoading
                   ? null
                   : () async {
-                if (reasonController.text.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please provide a reason'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
+                      if (reasonController.text.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please provide a reason'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                setState(() => isLoading = true);
+                      setState(() => isLoading = true);
 
-                final provider = Provider.of<DonationProvider>(context, listen: false);
-                await provider.rejectDonation(donation.id, reasonController.text);
-                await provider.loadAllDonations();
+                      final provider =
+                          Provider.of<DonationProvider>(context, listen: false);
+                      await provider.rejectDonation(
+                          donation.id, reasonController.text);
+                      await provider.loadAllDonations();
 
-                if (ctx.mounted) Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
 
-                if (!mounted) return;
+                      if (!mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${donation.title} rejected'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${donation.title} rejected'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
               child: isLoading
                   ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
                   : const Text('Reject'),
             ),
           ],
@@ -1442,9 +1527,11 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (donation.proofImageUrl != null && donation.proofImageUrl!.isNotEmpty)
+            if (donation.proofImageUrl != null &&
+                donation.proofImageUrl!.isNotEmpty)
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
                 child: Image.network(
                   donation.proofImageUrl!,
                   height: 160,
@@ -1453,7 +1540,9 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
                     color: Colors.deepPurple[100],
-                    child: const Center(child: Icon(Icons.image, size: 40, color: Colors.deepPurple)),
+                    child: const Center(
+                        child: Icon(Icons.image,
+                            size: 40, color: Colors.deepPurple)),
                   ),
                 ),
               ),
@@ -1465,15 +1554,18 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
                 children: [
                   Text(
                     donation.title,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  _buildDetailRow('Donor', donation.isAnonymous ? 'Anonymous' : donation.donorName),
+                  _buildDetailRow('Donor',
+                      donation.isAnonymous ? 'Anonymous' : donation.donorName),
                   _buildDetailRow('Category', donation.category),
                   _buildDetailRow('Quantity', '${donation.quantity} items'),
                   _buildDetailRow('Location', donation.location),
                   const Divider(height: 16),
-                  const Text('Impact:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Impact:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(donation.recipientInfo ?? 'N/A'),
                   const SizedBox(height: 4),
@@ -1500,43 +1592,6 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showQuickStats() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Donation Statistics'),
-        content: Consumer<DonationProvider>(
-          builder: (context, provider, child) {
-            return SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStatRow('Pending', provider.pendingDonations.length, Colors.orange),
-                  _buildStatRow('Approved', provider.approvedDonations.length, Colors.blue),
-                  _buildStatRow('Completed', provider.completedDonations.length, Colors.green),
-                  _buildStatRow('Rejected', provider.rejectedDonations.length, Colors.red),
-                  const Divider(height: 16),
-                  const Text('Categories:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  _buildStatRow('Clothing', _countByCategory(provider, 'Clothing'), Colors.purple),
-                  _buildStatRow('Books', _countByCategory(provider, 'Books'), Colors.blue),
-                  _buildStatRow('Toys', _countByCategory(provider, 'Toys'), Colors.orange),
-                ],
-              ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
@@ -1573,7 +1628,7 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
     );
   }
 
-  //  HELPER FUNCTIONS
+  // HELPER FUNCTIONS
 
   List<DonationModel> _filterDonations(List<DonationModel> donations) {
     return donations.where((d) {
@@ -1583,48 +1638,11 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
           d.location.toLowerCase().contains(_searchQuery) ||
           (d.recipientInfo?.toLowerCase().contains(_searchQuery) ?? false);
 
-      final matchesCategory = _categoryFilter == null || d.category == _categoryFilter;
+      final matchesCategory =
+          _categoryFilter == null || d.category == _categoryFilter;
 
       return matchesSearch && matchesCategory;
     }).toList();
-  }
-
-  int _countByCategory(DonationProvider provider, String category) {
-    int count = 0;
-    count += provider.pendingDonations.where((d) => d.category == category).length;
-    count += provider.approvedDonations.where((d) => d.category == category).length;
-    count += provider.completedDonations.where((d) => d.category == category).length;
-    count += provider.rejectedDonations.where((d) => d.category == category).length;
-    return count;
-  }
-
-  Widget _buildStatRow(String label, int count, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(label, style: const TextStyle(fontSize: 13)),
-            ],
-          ),
-          Text(
-            '$count',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -1635,10 +1653,15 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
         children: [
           SizedBox(
             width: 65,
-            child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            child: Text('$label:',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            child: Text(value,
+                style: const TextStyle(fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
           ),
         ],
       ),
@@ -1699,22 +1722,66 @@ class _DonationManagementScreenState extends State<DonationManagementScreen> wit
   }
 
   // Phone call function
-  void _makePhoneCall(String phoneNumber) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Calling $phoneNumber...'),
-        backgroundColor: Colors.green,
-      ),
-    );
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+
+    // Ensure the number has a tel: prefix
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanNumber);
+
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not launch phone dialer for $phoneNumber'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // Send message function
-  void _sendMessage(String phoneNumber) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening messenger for $phoneNumber...'),
-        backgroundColor: Colors.blue,
-      ),
-    );
+  Future<void> _sendMessage(String phoneNumber) async {
+    String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+
+    // Create SMS URI
+    final Uri smsUri = Uri(scheme: 'sms', path: cleanNumber);
+
+    try {
+      if (await canLaunchUrl(smsUri)) {
+        await launchUrl(smsUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not open messaging app for $phoneNumber'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
