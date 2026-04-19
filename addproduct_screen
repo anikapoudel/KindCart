@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/product_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/product_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -805,6 +806,63 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
+  Widget _buildConditionDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Condition *',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedCondition,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.info_outline, size: 20),
+              border: InputBorder.none,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            hint: const Text('Select condition'),
+            items: _conditions.map((condition) {
+              return DropdownMenuItem(
+                value: condition,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _getConditionColor(condition),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(condition),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCondition = value;
+              });
+            },
+            validator: (value) {
+              if (value == null) return 'Please select condition';
+              return null;
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPhotosPriceLocationStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1464,93 +1522,136 @@ class _AddProductScreenState extends State<AddProductScreen> {
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonFormField<String>(
-            value: _selectedCategory,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.category, size: 20),
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            hint: const Text('Select category'),
-            items: _categories.map((category) {
-              return DropdownMenuItem(
-                value: category,
-                child: Text(category),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedCategory = value;
-              });
-            },
-            validator: (value) {
-              if (value == null) return 'Please select a category';
-              return null;
-            },
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildConditionDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Condition *',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonFormField<String>(
-            value: _selectedCondition,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.info_outline, size: 20),
-              border: InputBorder.none,
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            hint: const Text('Select condition'),
-            items: _conditions.map((condition) {
-              return DropdownMenuItem(
-                value: condition,
-                child: Row(
+        // Use StreamBuilder for real-time categories from Firestore
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('categories')
+              .orderBy('name')
+              .snapshots(),
+          builder: (context, snapshot) {
+            // Handle loading state
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
                   children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getConditionColor(condition),
-                      ),
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    const SizedBox(width: 8),
-                    Text(condition),
+                    SizedBox(width: 12),
+                    Text('Loading categories...'),
                   ],
                 ),
               );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedCondition = value;
-              });
-            },
-            validator: (value) {
-              if (value == null) return 'Please select condition';
-              return null;
-            },
-          ),
+            }
+
+            // Handle error
+            if (snapshot.hasError) {
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.red.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.red.shade50,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Error: ${snapshot.error}',
+                        style:
+                            TextStyle(color: Colors.red.shade600, fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {}), // Refresh
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Get categories from snapshot
+            final categories = snapshot.data!.docs;
+            final categoryNames =
+                categories.map((doc) => doc['name'] as String).toList();
+
+            // Handle empty state
+            if (categoryNames.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.orange.shade50,
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.category_outlined,
+                        color: Colors.orange.shade600, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No categories available',
+                      style: TextStyle(color: Colors.orange.shade600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please contact admin',
+                      style: TextStyle(
+                          color: Colors.orange.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Return dropdown with dynamic categories
+            return Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: _selectedCategory != null &&
+                        categoryNames.contains(_selectedCategory)
+                    ? _selectedCategory
+                    : null,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.category, size: 20),
+                  border: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                hint: const Text('Select category'),
+                items: categoryNames.map((category) {
+                  return DropdownMenuItem(
+                    value: category,
+                    child: Text(category),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                },
+                validator: (value) {
+                  if (value == null) return 'Please select a category';
+                  return null;
+                },
+              ),
+            );
+          },
         ),
       ],
     );
