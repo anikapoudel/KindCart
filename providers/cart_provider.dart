@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
 import '../providers/auth_provider.dart' as app_auth;
 
 class CartProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _items = [];
   String? _currentUserId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<Map<String, dynamic>> get items => _items;
 
@@ -17,47 +19,137 @@ class CartProvider extends ChangeNotifier {
     _currentUserId = userId;
     if (userId != null) {
       loadCart(userId);
+    } else {
+      _items.clear();
+      notifyListeners();
+      debugPrint('🛒 Cart cleared after logout');
     }
   }
 
-  // Load cart from persistent storage
+  // Load cart from Firestore
   Future<void> loadCart(String userId) async {
     try {
       debugPrint('🔄 Loading cart for user: $userId');
+
+      DocumentSnapshot doc =
+          await _firestore.collection('carts').doc(userId).get();
+
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        List<dynamic> items = data['items'] ?? [];
+        _items = items.cast<Map<String, dynamic>>();
+        debugPrint('✅ Loaded ${_items.length} items from Firestore');
+        notifyListeners();
+      } else {
+        await _loadFromLocalStorage(userId);
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading cart from Firestore: $e');
+      await _loadFromLocalStorage(userId);
+    }
+  }
+
+  // Fallback to local storage
+  Future<void> _loadFromLocalStorage(String userId) async {
+    try {
       final prefs = await SharedPreferences.getInstance();
       final String? cartData = prefs.getString('cart_$userId');
       if (cartData != null) {
         final List<dynamic> decoded = json.decode(cartData);
         _items =
             decoded.map((item) => Map<String, dynamic>.from(item)).toList();
-        debugPrint('✅ Loaded ${_items.length} items from cart');
+        debugPrint('✅ Loaded ${_items.length} items from local storage');
+
+        // If user is logged in, migrate local cart to Firestore
+        if (_currentUserId != null && _items.isNotEmpty) {
+          await _saveToFirestore();
+          // Clear local storage after migration
+          await prefs.remove('cart_$userId');
+          debugPrint('📤 Migrated local cart to Firestore');
+        }
+
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('❌ Error loading cart: $e');
+      debugPrint('❌ Error loading from local storage: $e');
     }
   }
 
-  // Save cart to persistent storage
+  // Save to Firestore only
+  Future<void> _saveToFirestore() async {
+    if (_currentUserId == null) return;
+
+    try {
+      await _firestore.collection('carts').doc(_currentUserId!).set({
+        'userId': _currentUserId,
+        'items': _items,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'itemCount': _items.length,
+      });
+      debugPrint('✅ Cart saved to Firestore for user: $_currentUserId');
+    } catch (e) {
+      debugPrint('❌ Error saving to Firestore: $e');
+      // If Firestore fails, save to local storage as backup
+      await _saveToLocalStorage();
+    }
+  }
+
+  // Backup to local storage
+  Future<void> _saveToLocalStorage() async {
+    if (_currentUserId == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String cartData = json.encode(_items);
+      await prefs.setString('cart_${_currentUserId!}', cartData);
+      debugPrint('💾 Cart saved to local storage (backup)');
+    } catch (e) {
+      debugPrint('❌ Error saving to local storage: $e');
+    }
+  }
+
+  //  save method
   Future<void> _saveCart() async {
     if (_currentUserId == null) {
       debugPrint('⚠️ Cannot save cart: No user ID set');
       return;
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String cartData = json.encode(_items);
-      await prefs.setString('cart_${_currentUserId!}', cartData);
-      debugPrint('✅ Cart saved for user: $_currentUserId');
-    } catch (e) {
-      debugPrint('❌ Error saving cart: $e');
-    }
+    // Save to Firestore
+    await _saveToFirestore();
+
+    //  local backup for offline support
+    await _saveToLocalStorage();
   }
 
-  // Get current user ID
-  String? _getCurrentUserId() {
-    return _currentUserId;
+  // Modified clear cart
+  void clearCart() async {
+    debugPrint('🧹 Clearing cart');
+    _items.clear();
+
+    if (_currentUserId != null) {
+      // Clear from Firestore
+      try {
+        await _firestore.collection('carts').doc(_currentUserId!).delete();
+        debugPrint('🗑️ Cart cleared from Firestore');
+      } catch (e) {
+        debugPrint('❌ Error clearing Firestore cart: $e');
+      }
+
+      // Clear from local storage
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('cart_${_currentUserId!}');
+    }
+
+    notifyListeners();
+  }
+
+  //  method for logout - ensures cart is saved before logout
+  Future<void> saveCartBeforeLogout() async {
+    if (_currentUserId != null && _items.isNotEmpty) {
+      await _saveToFirestore();
+      debugPrint('💾 Cart preserved before logout');
+    }
   }
 
   void addToCart(ProductModel product, {int quantity = 1}) {
@@ -79,9 +171,9 @@ class CartProvider extends ChangeNotifier {
     } else {
       // Add new item with ALL field names that might be used across the app
       final newItem = {
-        // Primary identifier 
+        // Primary identifier
         'productId': product.id,
-        'id': product.id, //  for backward compatibility
+        'id': product.id, // for backward compatibility
 
         // Product details
         'name': product.title,
@@ -89,7 +181,7 @@ class CartProvider extends ChangeNotifier {
         'description': product.description,
 
         // Price fields (both string and numeric)
-        'price': '₹${product.price.toStringAsFixed(0)}',
+        'price': 'NPR ${product.price.toStringAsFixed(0)}',
         'priceValue': product.price,
 
         // Image fields
@@ -179,14 +271,7 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  void clearCart() {
-    debugPrint('🧹 Clearing cart');
-    _items.clear();
-    _saveCart();
-    notifyListeners();
-  }
-
-  // Helper method to get a specific item's productId
+  //  method to get a specific item's productId
   String? getProductIdAtIndex(int index) {
     if (index >= 0 && index < _items.length) {
       return _items[index]['productId'] ?? _items[index]['id'];
@@ -204,7 +289,7 @@ class CartProvider extends ChangeNotifier {
       if (item['priceValue'] != null) {
         price = item['priceValue']?.toDouble() ?? 0;
       } else if (item['price'] != null) {
-        // Parse from string like "₹888"
+        // Parse from string like "NPR 888"
         String priceStr = item['price'].toString();
         price = double.parse(priceStr.replaceAll('₹', '').replaceAll(',', ''));
       }
@@ -228,7 +313,7 @@ class CartProvider extends ChangeNotifier {
     if (subtotal > 500) {
       return 'Free';
     }
-    return '₹50';
+    return 'NPR 50';
   }
 
   // Get delivery fee as double
@@ -239,7 +324,7 @@ class CartProvider extends ChangeNotifier {
   // Get grand total as formatted string
   String get grandTotal {
     double total = subtotal + deliveryFeeAmount;
-    return '₹${total.toStringAsFixed(0)}';
+    return 'NPR ${total.toStringAsFixed(0)}';
   }
 
   // Get grand total as double
