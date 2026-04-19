@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/donation_provider.dart';
 import '../models/donation_model.dart';
 
@@ -42,23 +43,30 @@ class DonationApprovalScreen extends StatelessWidget {
                     child: Text(donation.quantity.toString()),
                   ),
                   title: Text(donation.title),
-                  subtitle: Text('${donation.category} • ${donation.condition}'),
+                  subtitle:
+                      Text('${donation.category} • ${donation.condition}'),
                   children: [
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildDetailRow('Donor', donation.isAnonymous ? 'Anonymous' : donation.donorName),
+                          _buildDetailRow(
+                              'Donor',
+                              donation.isAnonymous
+                                  ? 'Anonymous'
+                                  : donation.donorName),
                           _buildDetailRow('Description', donation.description),
                           _buildDetailRow('Location', donation.location),
-                          _buildDetailRow('Contact', donation.contact),
+                          _buildContactRow(
+                              'Contact', donation.contact, context),
                           _buildDetailRow('Urgency', donation.urgency),
 
                           // Show donor images if available
                           if (donation.donorImageUrls.isNotEmpty) ...[
                             const SizedBox(height: 16),
-                            const Text('Donor Images:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text('Donor Images:',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 8),
                             SizedBox(
                               height: 80,
@@ -67,14 +75,16 @@ class DonationApprovalScreen extends StatelessWidget {
                                 itemCount: donation.donorImageUrls.length,
                                 itemBuilder: (imgCtx, imgIndex) {
                                   return GestureDetector(
-                                    onTap: () => _showFullImage(context, donation.donorImageUrls[imgIndex]),
+                                    onTap: () => _showFullImage(context,
+                                        donation.donorImageUrls[imgIndex]),
                                     child: Container(
                                       width: 80,
                                       margin: const EdgeInsets.only(right: 8),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(8),
                                         image: DecorationImage(
-                                          image: NetworkImage(donation.donorImageUrls[imgIndex]),
+                                          image: NetworkImage(donation
+                                              .donorImageUrls[imgIndex]),
                                           fit: BoxFit.cover,
                                         ),
                                       ),
@@ -90,7 +100,8 @@ class DonationApprovalScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: ElevatedButton.icon(
-                                  onPressed: () => _showCompleteDialog(context, donation),
+                                  onPressed: () =>
+                                      _showCompleteDialog(context, donation),
                                   icon: const Icon(Icons.check),
                                   label: const Text('Mark Completed'),
                                   style: ElevatedButton.styleFrom(
@@ -101,7 +112,8 @@ class DonationApprovalScreen extends StatelessWidget {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () => _showRejectDialog(context, donation),
+                                  onPressed: () =>
+                                      _showRejectDialog(context, donation),
                                   icon: const Icon(Icons.close),
                                   label: const Text('Reject'),
                                   style: OutlinedButton.styleFrom(
@@ -130,11 +142,109 @@ class DonationApprovalScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 100, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold))),
+          SizedBox(
+              width: 100,
+              child: Text('$label:',
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           Expanded(child: Text(value)),
         ],
       ),
     );
+  }
+
+  Widget _buildContactRow(String label, String value, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+              width: 100,
+              child: Text('$label:',
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(child: Text(value)),
+                IconButton(
+                  icon: const Icon(Icons.phone, color: Colors.green, size: 20),
+                  onPressed: () => _makePhoneCall(value, context),
+                  tooltip: 'Call',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.message, color: Colors.blue, size: 20),
+                  onPressed: () => _sendMessage(value, context),
+                  tooltip: 'Message',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Phone call function
+  Future<void> _makePhoneCall(String phoneNumber, BuildContext context) async {
+    String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+    // Ensure the number has a tel: prefix
+    final Uri phoneUri = Uri(scheme: 'tel', path: cleanNumber);
+
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not launch phone dialer for $phoneNumber'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Send message function
+  Future<void> _sendMessage(String phoneNumber, BuildContext context) async {
+    // Remove any spaces or special characters, keep only digits and plus sign
+    String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
+    // Create SMS URI
+    final Uri smsUri = Uri(scheme: 'sms', path: cleanNumber);
+
+    try {
+      if (await canLaunchUrl(smsUri)) {
+        await launchUrl(smsUri);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not open messaging app for $phoneNumber'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showCompleteDialog(BuildContext context, DonationModel donation) {
@@ -170,7 +280,8 @@ class DonationApprovalScreen extends StatelessWidget {
                         return GestureDetector(
                           onTap: () {
                             Navigator.pop(ctx);
-                            _showFullImage(context, donation.donorImageUrls[imgIndex]);
+                            _showFullImage(
+                                context, donation.donorImageUrls[imgIndex]);
                           },
                           child: Container(
                             width: 80,
@@ -178,7 +289,8 @@ class DonationApprovalScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               image: DecorationImage(
-                                image: NetworkImage(donation.donorImageUrls[imgIndex]),
+                                image: NetworkImage(
+                                    donation.donorImageUrls[imgIndex]),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -211,7 +323,8 @@ class DonationApprovalScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
-                    children: donation.donorImageUrls.asMap().entries.map((entry) {
+                    children:
+                        donation.donorImageUrls.asMap().entries.map((entry) {
                       final idx = entry.key;
                       final url = entry.value;
                       return ChoiceChip(
@@ -251,53 +364,57 @@ class DonationApprovalScreen extends StatelessWidget {
               onPressed: isLoading
                   ? null
                   : () async {
-                if (recipientController.text.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter recipient info'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
+                      if (recipientController.text.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter recipient info'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                setState(() => isLoading = true);
+                      setState(() => isLoading = true);
 
-                final provider = Provider.of<DonationProvider>(context, listen: false);
+                      final provider =
+                          Provider.of<DonationProvider>(context, listen: false);
 
-                // Use donor image as proof if none provided
-                String? proofUrl = imageController.text.isNotEmpty
-                    ? imageController.text
-                    : (donation.donorImageUrls.isNotEmpty ? donation.donorImageUrls.first : null);
+                      // Use donor image as proof if none provided
+                      String? proofUrl = imageController.text.isNotEmpty
+                          ? imageController.text
+                          : (donation.donorImageUrls.isNotEmpty
+                              ? donation.donorImageUrls.first
+                              : null);
 
-                await provider.completeDonation(
-                  donationId: donation.id,
-                  proofImageUrl: proofUrl,
-                  recipientInfo: recipientController.text,
-                );
-                await provider.loadAllDonations();
+                      await provider.completeDonation(
+                        donationId: donation.id,
+                        proofImageUrl: proofUrl,
+                        recipientInfo: recipientController.text,
+                      );
+                      await provider.loadAllDonations();
 
-                if (ctx.mounted) Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
 
-                if (!context.mounted) return;
+                      if (!context.mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${donation.title} marked completed!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${donation.title} marked completed!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
               ),
               child: isLoading
                   ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
                   : const Text('Complete'),
             ),
           ],
@@ -343,43 +460,46 @@ class DonationApprovalScreen extends StatelessWidget {
               onPressed: isLoading
                   ? null
                   : () async {
-                if (reasonController.text.isEmpty) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please provide a reason'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
+                      if (reasonController.text.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please provide a reason'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
-                setState(() => isLoading = true);
+                      setState(() => isLoading = true);
 
-                final provider = Provider.of<DonationProvider>(context, listen: false);
-                await provider.rejectDonation(donation.id, reasonController.text);
-                await provider.loadAllDonations();
+                      final provider =
+                          Provider.of<DonationProvider>(context, listen: false);
+                      await provider.rejectDonation(
+                          donation.id, reasonController.text);
+                      await provider.loadAllDonations();
 
-                if (ctx.mounted) Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
 
-                if (!context.mounted) return;
+                      if (!context.mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${donation.title} rejected'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              },
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${donation.title} rejected'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
               child: isLoading
                   ? const SizedBox(
-                height: 18,
-                width: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
                   : const Text('Reject'),
             ),
           ],
