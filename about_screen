@@ -1,499 +1,601 @@
 import 'package:flutter/material.dart';
-import 'package:kindcart/screens/adddonation_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'auth_screen.dart'; // Make sure to import these screens
-import 'donate_screen.dart';
-import 'shop_screen.dart';
+import 'auth_screen.dart';
 
 class AboutScreen extends StatelessWidget {
-  const AboutScreen({super.key});
+  final bool isLoggedIn;
+
+  const AboutScreen({super.key, this.isLoggedIn = false});
+
+  static const _deepGreen = Color(0xFF1A3A2A);
+  static const _midGreen = Color(0xFF2D6A4F);
+  static const _brightGreen = Color(0xFF40916C);
+  static const _lightGreen = Color(0xFF74C69D);
+  static const _cream = Color(0xFFFAF7F2);
+  static const _sand = Color(0xFFE8E0D5);
+  static const _textMid = Color(0xFF4A4A4A);
+  static const _textMuted = Color(0xFF8A8A8A);
 
   Future<void> _launchEmail(String email) async {
-    final Uri emailUri = Uri(
-      scheme: 'mailto',
-      path: email,
-    );
-
-    if (!await launchUrl(emailUri)) {
-      throw 'Could not open email app';
-    }
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (!await launchUrl(uri)) throw 'Could not open email app';
   }
 
   Future<void> _launchPhone(String phone) async {
-    final Uri phoneUri = Uri(
-      scheme: 'tel',
-      path: phone,
-    );
-
-    if (!await launchUrl(phoneUri)) {
-      throw 'Could not open phone dialer';
-    }
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (!await launchUrl(uri)) throw 'Could not open phone dialer';
   }
 
   Future<void> _launchMaps(String address) async {
-    final Uri mapUri = Uri(
+    final uri = Uri(
       scheme: 'https',
       host: 'www.google.com',
       path: '/maps/search/',
       queryParameters: {'query': address},
     );
-
-    if (!await launchUrl(mapUri)) {
-      throw 'Could not open maps';
-    }
+    if (!await launchUrl(uri)) throw 'Could not open maps';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('About KindCart'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Logo and Title
-            Center(
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/logo.png',
-                    width: MediaQuery.of(context).size.width * 0.8,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'KindCart',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green[700],
-                    ),
-                  ),
-                  const Text(
-                    'Sustainable Shopping & Donations',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
+      backgroundColor: _cream,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 248,
+            pinned: true,
+            backgroundColor: _deepGreen,
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.only(bottom: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child:
+                    const Icon(Icons.arrow_back, size: 18, color: Colors.white),
               ),
+              onPressed: () => Navigator.pop(context),
             ),
-
-            const SizedBox(height: 30),
-
-            // Mission Section
-            const Text(
-              'Our Mission',
+            title: const Text(
+              'About KindCart',
               style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'To enable purchasing and selling second-hand items while facilitating '
-                  'easier donations of useful items. The app aims to encourage sustainable '
-                  'consumption and social responsibility through a user-friendly technological '
-                  'interface. The goal is not only to create a marketplace platform but also '
-                  'to foster a community that practices sustainable and responsible consumption, '
-                  'along with charitable donations focusing on ethical fashion and giving.',
-              style: TextStyle(fontSize: 16, height: 1.5),
-            ),
-
-            const SizedBox(height: 25),
-
-            // What We Do
-            const Text(
-              'What We Do',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            _buildFeatureCard(
-              icon: Icons.shopping_bag,
-              title: 'Thrift Shopping',
-              description: 'Buy quality second-hand items at affordable prices.',
-              color: Colors.green,
-            ),
-
-            _buildFeatureCard(
-              icon: Icons.volunteer_activism,
-              title: 'Easy Donations',
-              description: 'Donate items directly to people who need them.',
-              color: Colors.blue,
-            ),
-
-            _buildFeatureCard(
-              icon: Icons.eco,
-              title: 'Reduce Waste',
-              description: 'Extend product lifespan and reduce landfill waste.',
-              color: Colors.orange,
-            ),
-
-            _buildFeatureCard(
-              icon: Icons.people,
-              title: 'Community Support',
-              description: 'Connect donors with local charities and individuals.',
-              color: Colors.purple,
-            ),
-
-            const SizedBox(height: 25),
-
-            // Stats
-            const Text(
-              'Our Impact',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            centerTitle: false,
+            titleSpacing: 0,
+            flexibleSpace: FlexibleSpaceBar(background: _buildHero()),
+          ),
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatCard('500+', 'Items Saved', Icons.recycling),
-                _buildStatCard('200+', 'Happy Donors', Icons.volunteer_activism),
-                _buildStatCard('300+', 'Families Helped', Icons.family_restroom),
+                _section(
+                  label: 'Who we are',
+                  title: 'Our Mission',
+                  child: const Text(
+                    'KindCart enables buying and selling second-hand items while making donations effortless. '
+                    'We\'re building a community rooted in sustainable consumption, ethical fashion, '
+                    'and genuine care for others — because doing good shouldn\'t be complicated.',
+                    style:
+                        TextStyle(fontSize: 14, color: _textMid, height: 1.75),
+                  ),
+                ),
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('What we offer'),
+                        _title('What We Do'),
+                      ]),
+                ),
+                _featureRow(),
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Why it matters'),
+                        _title('Our Impact'),
+                      ]),
+                ),
+                _impactList(),
+                _divider(),
+                _contactCard(),
+                if (!isLoggedIn) _joinBanner(context),
+                const SizedBox(height: 32),
               ],
             ),
-
-            const SizedBox(height: 25),
-
-            // Team Section
-            const Text(
-              'Meet Our Team',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'We are a passionate group of developers, designers, and sustainability '
-                  'enthusiasts dedicated to making a positive impact.',
-              style: TextStyle(fontSize: 16, height: 1.5),
-            ),
-
-            const SizedBox(height: 25),
-
-            // Contact Info
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Contact Us',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    // Email - opens email app
-                    InkWell(
-                      onTap: () {
-                        _launchEmail('panika22@tbc.edu.np');
-                      },
-                      child: _buildContactInfo(Icons.email, 'panika22@tbc.edu.np'),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Phone - opens phone dialer
-                    InkWell(
-                      onTap: () {
-                        _launchPhone('+977-9867545678');
-                      },
-                      child: _buildContactInfo(Icons.phone, '+977-9867545678'),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Location - opens maps
-                    InkWell(
-                      onTap: () {
-                        _launchMaps('Thapathali Road, Kathmandu 44600');
-                      },
-                      child: _buildContactInfo(Icons.location_on, 'Thapathali Road, Kathmandu 44600'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // Call to Action - Join Our Mission Button
-            Center(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.handshake),
-                label: const Text('Join Our Mission'),
-                onPressed: () {
-                  _showJoinOptions(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                  backgroundColor: Colors.green[700],
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 40),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // Method to show join options
-  void _showJoinOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  Widget _buildHero() {
+    return Container(
+      constraints: const BoxConstraints(
+        minHeight: 280, // Minimum height for small screens
+        maxHeight: 400, // Maximum height for large screens
       ),
-      builder: (BuildContext context) {
-        return SingleChildScrollView(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_deepGreen, _midGreen, _brightGreen],
+        ),
+      ),
+      child: Stack(children: [
+        Positioned(
+          right: -30,
+          top: -30,
           child: Container(
-            padding: const EdgeInsets.all(20),
+            width: 160,
+            height: 160,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.05),
+            ),
+          ),
+        ),
+        Positioned(
+          left: -20,
+          bottom: 10,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.04),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
+                const SizedBox(height: 42),
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.25)),
+                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: Image.asset(
+                    'assets/Logo.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('KindCart',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      fontFamily: 'serif',
+                    )),
+                const SizedBox(height: 3),
+                Text('SUSTAINABLE SHOPPING & GIVING',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white.withOpacity(0.65),
+                      letterSpacing: 1.8,
+                      fontWeight: FontWeight.w300,
+                    )),
+                const SizedBox(height: 14),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                          color: _lightGreen, shape: BoxShape.circle),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Text('Making consumption kinder',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: Colors.white.withOpacity(0.88))),
+                  ]),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Join Our Mission',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Choose how you would like to contribute:',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Option 1: Sign Up
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withAlpha(30),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.person_add, color: Colors.green),
-                  ),
-                  title: const Text('Create an Account'),
-                  subtitle: const Text('Sign up to start donating or shopping'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.pop(context); // Close bottom sheet
-                    // Navigate to Sign Up Screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AuthScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                const Divider(),
-
-                // Option 2: Start Donating
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withAlpha(30),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.volunteer_activism, color: Colors.blue),
-                  ),
-                  title: const Text('Start Donating'),
-                  subtitle: const Text('Donate items you no longer need'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.pop(context); // Close bottom sheet
-                    // Navigate to Donation Screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AddDonationScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                const Divider(),
-
-                // Option 3: Shop Sustainably
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withAlpha(30),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.shopping_bag, color: Colors.orange),
-                  ),
-                  title: const Text('Shop Sustainably'),
-                  subtitle: const Text('Browse eco-friendly second-hand items'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.pop(context); // Close bottom sheet
-                    // Navigate to Shopping Screen
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ShopScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 20),
-
-                // Close button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Maybe Later'),
-                  ),
-                ),
-                const SizedBox(height: 10), // Extra padding for safety
               ],
             ),
           ),
-        );
-      },
+        ),
+      ]),
     );
   }
 
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required Color color,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withAlpha(20),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 30),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+  // Layout helpers
+  Widget _section(
+      {required String label, required String title, required Widget child}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _label(label),
+        _title(title),
+        const SizedBox(height: 10),
+        child,
+      ]),
+    );
+  }
+
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(t.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2,
+              color: _brightGreen,
+            )),
+      );
+
+  Widget _title(String t) => Text(t,
+      style: const TextStyle(
+        fontSize: 21,
+        fontWeight: FontWeight.w700,
+        color: _deepGreen,
+        fontFamily: 'serif',
+      ));
+
+  Widget _divider() => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+        height: 1,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              colors: [Colors.transparent, _sand, Colors.transparent]),
         ),
+      );
+
+  // Feature single row
+  Widget _featureRow() {
+    final items = [
+      _FeatureData(
+          'Thrift Shopping',
+          Icons.shopping_bag_outlined,
+          const Color(0xFF2D6A4F),
+          const Color(0xFFF0FAF2),
+          const Color(0xFF40916C)),
+      _FeatureData(
+          'Easy Donations',
+          Icons.favorite_outline,
+          const Color(0xFF2563EB),
+          const Color(0xFFEFF6FF),
+          const Color(0xFF3B82F6)),
+      _FeatureData('Reduce Waste', Icons.autorenew, const Color(0xFFD97706),
+          const Color(0xFFFFFBEB), const Color(0xFFF59E0B)),
+      _FeatureData('Community', Icons.people_outline, const Color(0xFF7C3AED),
+          const Color(0xFFF5F3FF), const Color(0xFF8B5CF6)),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: List.generate(
+            items.length,
+            (i) => Expanded(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.only(right: i < items.length - 1 ? 8 : 0),
+                    child: _featureCard(items[i]),
+                  ),
+                )),
       ),
     );
   }
 
-  Widget _buildStatCard(String value, String label, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.green.withAlpha(20),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.green, size: 30),
+  Widget _featureCard(_FeatureData d) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _sand),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Column(children: [
+        Container(height: 3, color: d.accent),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+          child: Column(children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: d.iconBg,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(d.icon, color: d.iconColor, size: 16),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              d.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 10.5, fontWeight: FontWeight.w600, height: 1.3),
+            ),
+          ]),
         ),
-        const SizedBox(height: 10),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+      ]),
     );
   }
 
-  Widget _buildContactInfo(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.green),
-        const SizedBox(width: 10),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 16),
-        ),
-      ],
+  // Impact list
+  Widget _impactList() {
+    final items = [
+      _ImpactData(
+          'Circular Economy',
+          'Every item re-homed means one less manufactured — and one less ending up in a landfill.',
+          Icons.autorenew,
+          const Color(0xFF2D6A4F),
+          const Color(0xFFF0FAF2)),
+      _ImpactData(
+          'Community First',
+          'Donations reach local families directly — no middlemen, no delays.',
+          Icons.home_outlined,
+          const Color(0xFF0D9488),
+          const Color(0xFFF0FDFA)),
+      _ImpactData(
+          'Conscious Living',
+          'Buy less new, give more, and feel genuinely good about every choice.',
+          Icons.shield_outlined,
+          const Color(0xFF4F46E5),
+          const Color(0xFFEEF2FF)),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: items
+            .map((d) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _impactCard(d),
+                ))
+            .toList(),
+      ),
     );
   }
+
+  Widget _impactCard(_ImpactData d) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _sand),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: IntrinsicHeight(
+        child: Row(children: [
+          Container(width: 3, color: d.iconColor),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: d.iconBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(d.icon, color: d.iconColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(d.title,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(d.desc,
+                            style: const TextStyle(
+                                fontSize: 12, color: _textMuted, height: 1.6)),
+                      ]),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  //  Contact card
+  Widget _contactCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+      decoration: BoxDecoration(
+        color: _deepGreen,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Get in Touch',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontFamily: 'serif',
+            )),
+        const SizedBox(height: 14),
+        _contactRow(Icons.email_outlined, 'panika22@tbc.edu.np',
+            () => _launchEmail('panika22@tbc.edu.np')),
+        const SizedBox(height: 8),
+        _contactRow(Icons.phone_outlined, '+977-9867545678',
+            () => _launchPhone('+977-9867545678')),
+        const SizedBox(height: 8),
+        _contactRow(
+            Icons.location_on_outlined,
+            'Thapathali Road, Kathmandu 44600',
+            () => _launchMaps('Thapathali Road, Kathmandu 44600')),
+      ]),
+    );
+  }
+
+  Widget _contactRow(IconData icon, String text, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: _lightGreen.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: _lightGreen, size: 15),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text,
+                style: TextStyle(
+                    fontSize: 12.5, color: Colors.white.withOpacity(0.85))),
+          ),
+          Icon(Icons.chevron_right,
+              color: Colors.white.withOpacity(0.35), size: 16),
+        ]),
+      ),
+    );
+  }
+
+  // Join banner (guests only)
+  Widget _joinBanner(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_brightGreen, _midGreen],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(children: [
+        Positioned(
+          right: -15,
+          top: -15,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.08),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 30,
+          bottom: -25,
+          child: Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.05),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(22),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('READY TO MAKE A DIFFERENCE?',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 1.5,
+                  color: Colors.white.withOpacity(0.7),
+                )),
+            const SizedBox(height: 4),
+            const Text('Join Our Mission',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontFamily: 'serif',
+                )),
+            const SizedBox(height: 6),
+            Text(
+                'Create an account to start donating, shopping,\nand making an impact in your community.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.white.withOpacity(0.75),
+                  height: 1.5,
+                )),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.person_add_outlined, size: 17),
+                label: const Text('Sign up — it\'s free',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AuthScreen())),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: _deepGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+// Data classes
+class _FeatureData {
+  final String title;
+  final IconData icon;
+  final Color iconColor, iconBg, accent;
+
+  const _FeatureData(
+      this.title, this.icon, this.iconColor, this.iconBg, this.accent);
+}
+
+class _ImpactData {
+  final String title, desc;
+  final IconData icon;
+  final Color iconColor, iconBg;
+
+  const _ImpactData(
+      this.title, this.desc, this.icon, this.iconColor, this.iconBg);
 }
