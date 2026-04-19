@@ -33,6 +33,10 @@ class AnnouncementProvider extends ChangeNotifier {
     final userDoc = await _firestore.collection('users').doc(userId).get();
     final userRole = userDoc.data()?['role'] ?? 'buyer';
 
+    // Get user creation date
+    final userCreatedAt =
+        (userDoc.data()?['createdAt'] as Timestamp?)?.toDate();
+
     _isLoading = true;
     notifyListeners();
 
@@ -46,8 +50,15 @@ class AnnouncementProvider extends ChangeNotifier {
           .map((doc) => Announcement.fromMap(doc.id, doc.data()))
           .where((announcement) {
         // Filter announcements based on target roles
-        return announcement.targetRoles.contains('all') ||
+        final roleMatch = announcement.targetRoles.contains('all') ||
             announcement.targetRoles.contains(userRole.toLowerCase());
+
+        //Only show announcements created AFTER user joined
+        final dateMatch = userCreatedAt == null ||
+            announcement.createdAt.isAfter(userCreatedAt);
+
+        // Return both conditions
+        return roleMatch && dateMatch;
       }).toList();
     } catch (e) {
       debugPrint('Error loading announcements: $e');
@@ -110,7 +121,6 @@ class AnnouncementProvider extends ChangeNotifier {
   }
 
   // Send announcement
-// Update sendAnnouncement method
   Future<bool> sendAnnouncement({
     required String title,
     required String message,
