@@ -7,6 +7,7 @@ import '../providers/product_provider.dart';
 import '../models/product_model.dart';
 import 'item_detail_screen.dart';
 import 'cart_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -152,6 +153,8 @@ class _ShopScreenState extends State<ShopScreen>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -267,8 +270,10 @@ class _ShopScreenState extends State<ShopScreen>
               ),
             ),
 
+            // Main content area
             Expanded(
               child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   children: [
                     // Search Bar
@@ -411,24 +416,80 @@ class _ShopScreenState extends State<ShopScreen>
                           horizontal: 12, vertical: 8),
                       child: Row(
                         children: [
+                          // "All" category chip
                           _buildCategoryChip('All', _selectedCategory == 'All',
                               () {
                             setState(() => _selectedCategory = 'All');
                             Provider.of<ProductProvider>(context, listen: false)
                                 .setCategory('All');
                           }),
-                          ...ProductModel.categoryOptions.map((category) {
-                            return _buildCategoryChip(
-                              category,
-                              _selectedCategory == category,
-                              () {
-                                setState(() => _selectedCategory = category);
-                                Provider.of<ProductProvider>(context,
-                                        listen: false)
-                                    .setCategory(category);
-                              },
-                            );
-                          }),
+
+                          // Dynamic categories from Firestore
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('categories')
+                                .orderBy('name')
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              // Show loading indicator while fetching
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.green[400],
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              // Handle errors or no data
+                              if (snapshot.hasError || !snapshot.hasData) {
+                                return const SizedBox.shrink();
+                              }
+
+                              // Get categories from Firestore
+                              final categories = snapshot.data!.docs;
+                              final categoryNames = categories
+                                  .map((doc) => doc['name'] as String)
+                                  .toList();
+
+                              // Show message if no categories
+                              if (categoryNames.isEmpty) {
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Text(
+                                    'No categories available',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[500]),
+                                  ),
+                                );
+                              }
+
+                              // Return category chips
+                              return Row(
+                                children: categoryNames.map((category) {
+                                  return _buildCategoryChip(
+                                    category,
+                                    _selectedCategory == category,
+                                    () {
+                                      setState(
+                                          () => _selectedCategory = category);
+                                      Provider.of<ProductProvider>(context,
+                                              listen: false)
+                                          .setCategory(category);
+                                    },
+                                  );
+                                }).toList(),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -542,7 +603,7 @@ class _ShopScreenState extends State<ShopScreen>
                       ),
                     ),
 
-                    // Product Grid - 3 columns
+                    // Product Grid
                     Consumer<ProductProvider>(
                       builder: (context, productProvider, child) {
                         if (productProvider.isLoading &&
@@ -617,12 +678,12 @@ class _ShopScreenState extends State<ShopScreen>
                           color: Colors.green,
                           child: GridView.builder(
                             shrinkWrap: true,
-                            physics: const AlwaysScrollableScrollPhysics(),
+                            physics: const NeverScrollableScrollPhysics(),
                             padding: const EdgeInsets.all(12),
                             gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              childAspectRatio: 0.62,
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              childAspectRatio: isWebLayout ? 0.6 : 0.35,
                               mainAxisSpacing: 10,
                               crossAxisSpacing: 10,
                             ),
