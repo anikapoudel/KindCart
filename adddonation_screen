@@ -20,7 +20,7 @@ class AddDonationScreen extends StatefulWidget {
 class _AddDonationScreenState extends State<AddDonationScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  //  CONTROLLERS
+  //  Controllers
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _quantityController = TextEditingController();
@@ -31,51 +31,118 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
   final _locationController = TextEditingController();
   final _contactController = TextEditingController();
 
-  //  SELECTED VALUES
+  //  Selected Values
   String? _selectedCategory;
   String? _selectedCondition;
   String? _selectedGender;
   String? _selectedUrgency;
 
-  //  TOGGLES
-  bool _canPickup = true;
-  bool _canDeliver = false;
+  //  Toggles
   bool _isAnonymous = false;
 
-  //  IMAGES
+  //  Images
   final ImagePicker _picker = ImagePicker();
   final List<XFile> _selectedImages = [];
   bool _isUploading = false;
 
-  //  LISTS
+  //  Lists
   final List<Map<String, dynamic>> _categories = const [
-    {'name': 'Clothing', 'icon': Icons.checkroom, 'color': Colors.blue},
-    {'name': 'Books', 'icon': Icons.menu_book, 'color': Colors.green},
-    {'name': 'Toys', 'icon': Icons.toys, 'color': Colors.orange},
-    {'name': 'Kitchenware', 'icon': Icons.kitchen, 'color': Colors.purple},
     {
-      'name': 'Electronics',
-      'icon': Icons.electrical_services,
-      'color': Colors.red
+      'name': 'Clothing',
+      'icon': Icons.checkroom,
+      'color': Color(0xFF4CAF50),
+      'emoji': '👕'
     },
-    {'name': 'Furniture', 'icon': Icons.chair, 'color': Colors.brown},
-    {'name': 'Food', 'icon': Icons.fastfood, 'color': Colors.amber},
-    {'name': 'Other', 'icon': Icons.add, 'color': Colors.grey},
+    {
+      'name': 'Books',
+      'icon': Icons.menu_book,
+      'color': Color(0xFF2196F3),
+      'emoji': '📚'
+    },
+    {
+      'name': 'Kitchenware',
+      'icon': Icons.kitchen,
+      'color': Color(0xFF9C27B0),
+      'emoji': '🍳'
+    },
+    {
+      'name': 'Furniture',
+      'icon': Icons.chair,
+      'color': Color(0xFF795548),
+      'emoji': '🪑'
+    },
+    {
+      'name': 'Food',
+      'icon': Icons.fastfood,
+      'color': Color(0xFFFFC107),
+      'emoji': '🍲'
+    },
+    {
+      'name': 'Other',
+      'icon': Icons.add,
+      'color': Color(0xFF9E9E9E),
+      'emoji': '📦'
+    },
   ];
 
-  final List<String> _conditions = const [
-    'Like New',
-    'Excellent',
-    'Good',
-    'Fair',
-    'Needs Repair'
+  final List<Map<String, dynamic>> _conditions = const [
+    {
+      'name': 'Like New',
+      'color': Color(0xFF4CAF50),
+      'icon': Icons.star,
+      'description': 'Used only once or twice'
+    },
+    {
+      'name': 'Excellent',
+      'color': Color(0xFF00BCD4),
+      'icon': Icons.verified,
+      'description': 'Minor signs of use'
+    },
+    {
+      'name': 'Good',
+      'color': Color(0xFF2196F3),
+      'icon': Icons.thumb_up,
+      'description': 'Well-maintained'
+    },
+    {
+      'name': 'Fair',
+      'color': Color(0xFFFF9800),
+      'icon': Icons.check_circle,
+      'description': 'Visible wear but usable'
+    },
+    {
+      'name': 'Needs Repair',
+      'color': Color(0xFFF44336),
+      'icon': Icons.build,
+      'description': 'Requires fixing'
+    },
   ];
 
-  final List<String> _urgencies = const [
-    'Immediate (24-48 hrs)',
-    'Urgent (3-5 days)',
-    'Normal (This week)',
-    'Anytime'
+  final List<Map<String, dynamic>> _urgencies = const [
+    {
+      'name': 'Immediate (24-48 hrs)',
+      'color': Color(0xFFF44336),
+      'icon': Icons.warning_amber,
+      'emoji': '⚠️'
+    },
+    {
+      'name': 'Urgent (3-5 days)',
+      'color': Color(0xFFFF9800),
+      'icon': Icons.access_time,
+      'emoji': '⏰'
+    },
+    {
+      'name': 'Normal (This week)',
+      'color': Color(0xFF2196F3),
+      'icon': Icons.calendar_today,
+      'emoji': '📅'
+    },
+    {
+      'name': 'Anytime',
+      'color': Color(0xFF4CAF50),
+      'icon': Icons.event_available,
+      'emoji': '✅'
+    },
   ];
 
   final List<String> _genders = const [
@@ -85,7 +152,6 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     'Kids',
     'Baby'
   ];
-
   final List<String> _sizes = const [
     'XS',
     'S',
@@ -97,7 +163,7 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     'Free Size'
   ];
 
-  //  STEPPER
+  //  Stepper
   int _currentStep = 0;
 
   @override
@@ -114,7 +180,6 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     super.dispose();
   }
 
-  //  IMAGE METHODS
   Future<void> _pickImages() async {
     try {
       final List<XFile> images = await _picker.pickMultiImage(
@@ -125,7 +190,7 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
 
       if (images.isNotEmpty && mounted) {
         setState(() {
-          _selectedImages.addAll(images); // Store XFile directly
+          _selectedImages.addAll(images);
         });
       }
     } catch (e) {
@@ -133,9 +198,8 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to pick images'),
-            backgroundColor: Colors.red,
-          ),
+              content: Text('Failed to pick images'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -149,110 +213,67 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
 
   Future<List<String>> _uploadImages(String donationId) async {
     List<String> imageUrls = [];
-    debugPrint('🚀 Starting image upload for donation: $donationId');
-    debugPrint('📸 Total images to upload: ${_selectedImages.length}');
-
-    // Get current user ID for the path
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final donorId = authProvider.user?.uid ?? 'unknown';
 
     for (int i = 0; i < _selectedImages.length; i++) {
       final XFile image = _selectedImages[i];
-      //  Include donorId in the path to match storage rules
       final fileName = 'donation_images/$donorId/${donationId}_image_$i.jpg';
 
       try {
-        debugPrint('📤 Uploading image $i...');
-        debugPrint('📁 Path: $fileName');
-
         final ref = FirebaseStorage.instance.ref().child(fileName);
 
         if (kIsWeb) {
-          // WEB: Upload as bytes
-          debugPrint('🌐 Web platform: Uploading as bytes');
           final Uint8List imageBytes = await image.readAsBytes();
           await ref.putData(
-            imageBytes,
-            SettableMetadata(contentType: 'image/jpeg'),
-          );
+              imageBytes, SettableMetadata(contentType: 'image/jpeg'));
         } else {
-          // MOBILE: Upload as file
-          debugPrint('📱 Mobile platform: Uploading as file');
           final File file = File(image.path);
           await ref.putFile(file);
         }
 
         final url = await ref.getDownloadURL();
-        debugPrint('✅ Image $i uploaded, URL: $url');
         imageUrls.add(url);
       } catch (e) {
-        debugPrint('❌ Error uploading image $i: $e');
-        if (e is FirebaseException) {
-          debugPrint('❌ Firebase error code: ${e.code}');
-          debugPrint('❌ Firebase error message: ${e.message}');
-        }
+        debugPrint('Error uploading image $i: $e');
       }
     }
 
-    debugPrint('✅ Upload complete. Total URLs: ${imageUrls.length}');
     return imageUrls;
   }
 
-  //  SUBMIT FORM
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      // Show loading
       if (!mounted) return;
 
       showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(color: Colors.orange),
-        ),
-      );
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50))));
 
       try {
-        // Get current user
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final user = authProvider.user;
 
         if (user == null) {
           if (mounted) {
-            Navigator.pop(context); // Close loading
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text('Please login first'),
-                backgroundColor: Colors.red,
-              ),
-            );
+                backgroundColor: Colors.red));
           }
           return;
         }
 
-        // Debug info
-        debugPrint('=== DEBUG INFO ===');
-        debugPrint('User ID: ${user.uid}');
-        debugPrint('User Role: ${authProvider.userData?['role']}');
-        debugPrint('Is Donor: ${authProvider.userData?['role'] == 'Donor'}');
-        debugPrint('Donation data:');
-        debugPrint('- Title: ${_titleController.text}');
-        debugPrint('- Description: ${_descriptionController.text}');
-        debugPrint('- Quantity: ${_quantityController.text}');
-        debugPrint('- Category: $_selectedCategory');
-        debugPrint('- Location: ${_locationController.text}');
-        debugPrint('=================');
-
-        // Check if user has Donor role
         if (authProvider.userData?['role'] != 'Donor') {
           if (mounted) {
-            Navigator.pop(context); // Close loading
+            Navigator.pop(context);
             _showRoleUpdateDialog();
           }
           return;
         }
 
-        // Create donation object
         final tempDonation = DonationModel(
           id: '',
           donorId: user.uid,
@@ -276,8 +297,8 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
           urgency: _selectedUrgency!,
           location: _locationController.text,
           contact: _contactController.text,
-          canPickup: _canPickup,
-          canDeliver: _canDeliver,
+          canPickup: true,
+          canDeliver: false,
           donorImageUrls: [],
           proofImageUrl: null,
           recipientInfo: null,
@@ -288,150 +309,149 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
           isAvailable: true,
         );
 
-        // Save to Firebase
         final donationProvider =
             Provider.of<DonationProvider>(context, listen: false);
-
         final docId = await donationProvider.submitDonation(tempDonation);
 
         if (docId == null) {
           if (mounted) {
-            Navigator.pop(context); // Close loading
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Failed to submit donation. Please check your network and try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Failed to submit donation'),
+                backgroundColor: Colors.red));
           }
           return;
         }
 
-        debugPrint('✅ Donation created with ID: $docId');
-
-        // Upload images if any
-        List<String> uploadedImageUrls = [];
         if (_selectedImages.isNotEmpty) {
           setState(() => _isUploading = true);
-          uploadedImageUrls = await _uploadImages(docId);
-          debugPrint('📸 Uploaded ${uploadedImageUrls.length} images');
-          debugPrint('📸 Image URLs: $uploadedImageUrls');
-
-          // Update donation with image URLs immediately
+          final uploadedImageUrls = await _uploadImages(docId);
           if (uploadedImageUrls.isNotEmpty) {
             await donationProvider.updateDonationImages(
                 docId, uploadedImageUrls);
-            debugPrint('✅ Updated donation with image URLs');
           }
         }
 
         if (mounted) {
-          Navigator.pop(context); // Close loading dialog
-
-          // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Donation submitted for review! The team will contact you soon.'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 4),
-            ),
-          );
-
-          // Go back to donor home
           Navigator.pop(context);
+          _showSuccessDialog();
         }
       } catch (e) {
-        debugPrint('❌ Error in donation submission: $e');
+        debugPrint('Error in donation submission: $e');
         if (mounted) {
-          Navigator.pop(context); // Close loading dialog
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text('Error: ${e.toString()}'),
-              backgroundColor: Colors.red,
-            ),
-          );
+              backgroundColor: Colors.red));
         }
       }
     }
   }
 
-  // Show dialog to update user role
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withAlpha(26),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle,
+                    color: Color(0xFF4CAF50), size: 64),
+              ),
+              const SizedBox(height: 20),
+              const Text('Donation Submitted!',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              const Text(
+                  'Thank you for your generosity. Our team will review your donation and contact you soon.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Done',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showRoleUpdateDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Role Required'),
-        content:
-            const Text('You need to have the "Donor" role to submit donations. '
-                'Would you like to update your role now?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Become a Donor'),
+        content: const Text(
+            'You need to have the "Donor" role to submit donations. Would you like to update your role now?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(ctx); // Close dialog
-
-              // Show loading
+              Navigator.pop(ctx);
               if (!mounted) return;
-
               showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => const Center(
-                  child: CircularProgressIndicator(color: Colors.orange),
-                ),
-              );
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(
+                      child:
+                          CircularProgressIndicator(color: Color(0xFF4CAF50))));
 
               try {
                 final authProvider =
                     Provider.of<AuthProvider>(context, listen: false);
                 final user = authProvider.user;
-
                 if (user != null) {
-                  // Update user role in Firestore
                   await FirebaseFirestore.instance
                       .collection('users')
                       .doc(user.uid)
-                      .update({
-                    'role': 'Donor',
-                  });
-
-                  // Refresh user data
+                      .update({'role': 'Donor'});
                   await authProvider.fetchUserData();
-
                   if (mounted) {
-                    Navigator.pop(context); // Close loading
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Role updated to Donor! You can now submit donations.'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Role updated to Donor!'),
+                        backgroundColor: Colors.green));
                   }
                 }
               } catch (e) {
-                debugPrint('Error updating role: $e');
                 if (mounted) {
-                  Navigator.pop(context); // Close loading
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error updating role: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'), backgroundColor: Colors.red));
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
+                backgroundColor: const Color(0xFF4CAF50)),
             child: const Text('Update Role'),
           ),
         ],
@@ -442,732 +462,722 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text(
-          'Donate Items',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Donate Items',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
         leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => _showExitConfirmation(),
-        ),
-        backgroundColor: Colors.orange,
+            icon: const Icon(Icons.close),
+            onPressed: () => _showExitConfirmation()),
+        backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
-        actions: [
-          TextButton(
-            onPressed: _currentStep == 2 ? _submitForm : null,
-            child: Text(
-              _currentStep == 2 ? 'SUBMIT' : 'Next',
-              style: TextStyle(
-                color: _currentStep == 2 ? Colors.white : Colors.white70,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      body: Column(
+        children: [
+          // Progress indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            color: Colors.white,
+            child: Row(
+              children: [
+                _buildStepIndicator(0, 'Item Details', _currentStep >= 0),
+                Expanded(
+                    child: Container(
+                        height: 2,
+                        color: _currentStep >= 1
+                            ? const Color(0xFF4CAF50)
+                            : Colors.grey.shade300)),
+                _buildStepIndicator(1, 'Donation Details', _currentStep >= 1),
+                Expanded(
+                    child: Container(
+                        height: 2,
+                        color: _currentStep >= 2
+                            ? const Color(0xFF4CAF50)
+                            : Colors.grey.shade300)),
+                _buildStepIndicator(2, 'Review', _currentStep >= 2),
+              ],
+            ),
+          ),
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: _currentStep == 0
+                    ? _buildItemDetailsStep()
+                    : (_currentStep == 1
+                        ? _buildDonationDetailsStep()
+                        : _buildReviewStep()),
               ),
             ),
           ),
+          // Bottom buttons
+          _buildBottomButtons(),
         ],
       ),
-      body: Stepper(
-        type: StepperType.horizontal,
-        currentStep: _currentStep,
-        onStepContinue: _currentStep < 2
-            ? () {
-                if (_validateCurrentStep()) {
-                  setState(() {
-                    _currentStep++;
-                  });
-                }
-              }
-            : null,
-        onStepCancel: _currentStep > 0
-            ? () {
-                setState(() {
-                  _currentStep--;
-                });
-              }
-            : null,
-        controlsBuilder: (context, details) {
-          return const SizedBox.shrink();
-        },
-        steps: [
-          Step(
-            title: const Text('Item Details'),
-            content: _buildItemDetailsStep(),
-            isActive: _currentStep >= 0,
-          ),
-          Step(
-            title: const Text('Donation Details'),
-            content: _buildDonationDetailsStep(),
-            isActive: _currentStep >= 1,
-          ),
-          Step(
-            title: const Text('Review'),
-            content: _buildReviewStep(),
-            isActive: _currentStep >= 2,
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomButtons(),
     );
   }
 
-  //  STEP 1: ITEM DETAILS
-  Widget _buildItemDetailsStep() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'What would you like to donate? *',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+  Widget _buildStepIndicator(int step, String label, bool isActive) {
+    return Column(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? const Color(0xFF4CAF50) : Colors.grey.shade300,
           ),
-          const SizedBox(height: 15),
-
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 0.9,
+          child: Center(
+            child: Text(
+              '${step + 1}',
+              style: TextStyle(
+                  color: isActive ? Colors.white : Colors.grey.shade600,
+                  fontWeight: FontWeight.bold),
             ),
-            itemCount: _categories.length,
-            itemBuilder: (context, index) {
-              final category = _categories[index];
-              final isSelected = _selectedCategory == category['name'];
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label,
+            style: TextStyle(
+                fontSize: 10,
+                color:
+                    isActive ? const Color(0xFF4CAF50) : Colors.grey.shade400)),
+      ],
+    );
+  }
 
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedCategory = category['name'] as String;
-                  });
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? (category['color'] as Color).withAlpha(26)
-                        : Colors.grey[50],
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isSelected
-                          ? category['color'] as Color
-                          : Colors.grey.shade300,
-                      width: isSelected ? 2 : 1,
+  Widget _buildItemDetailsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Category section
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('What are you donating?',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Calculate number of columns based on screen width
+                  int crossAxisCount = 6;
+                  if (constraints.maxWidth < 400) {
+                    crossAxisCount = 4;
+                  } else if (constraints.maxWidth < 500) {
+                    crossAxisCount = 5;
+                  } else {
+                    crossAxisCount = 6;
+                  }
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.85,
                     ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        category['icon'] as IconData,
-                        color: isSelected
-                            ? category['color'] as Color
-                            : Colors.grey,
-                        size: 30,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        category['name'] as String,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isSelected
-                              ? category['color'] as Color
-                              : Colors.grey,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 25),
-
-          // IMAGE PICKER SECTION
-          const Text(
-            'Upload Photos (Optional)',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Show what you\'re donating (max 5 photos)',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-
-          // Image grid
-          if (_selectedImages.isNotEmpty)
-            Container(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _selectedImages.length,
-                itemBuilder: (ctx, index) {
-                  return Stack(
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        margin: const EdgeInsets.only(right: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: kIsWeb
-                              ? Image.network(
-                                  _selectedImages[index].path,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                        child: Icon(Icons.broken_image)),
-                                  ),
-                                )
-                              : Image.file(
-                                  File(_selectedImages[index].path),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                        child: Icon(Icons.broken_image)),
-                                  ),
+                    itemCount: _categories.length,
+                    itemBuilder: (context, index) {
+                      final category = _categories[index];
+                      final isSelected = _selectedCategory == category['name'];
+                      return GestureDetector(
+                        onTap: () => setState(
+                            () => _selectedCategory = category['name']),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (category['color'] as Color).withAlpha(26)
+                                : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: isSelected
+                                    ? category['color'] as Color
+                                    : Colors.grey.shade200,
+                                width: isSelected ? 2 : 1),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(category['emoji'] as String,
+                                  style: TextStyle(
+                                      fontSize: constraints.maxWidth < 400
+                                          ? 24
+                                          : 28)),
+                              const SizedBox(height: 6),
+                              Text(
+                                category['name'] as String,
+                                style: TextStyle(
+                                  fontSize:
+                                      constraints.maxWidth < 400 ? 10 : 11,
+                                  color: isSelected
+                                      ? category['color'] as Color
+                                      : Colors.grey,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                 ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 12,
-                        child: GestureDetector(
-                          onTap: () => _removeImage(index),
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.close,
-                                color: Colors.white, size: 16),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   );
                 },
               ),
-            ),
-          const SizedBox(height: 8),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
 
-          // Add image button
-          if (_selectedImages.length < 5)
-            OutlinedButton.icon(
-              onPressed: _pickImages,
-              icon: const Icon(Icons.add_photo_alternate),
-              label: const Text('Add Photos'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.orange,
-                side: const BorderSide(color: Colors.orange),
-              ),
-            ),
-
-          const SizedBox(height: 25),
-
-          // Item Title
-          const Text(
-            'Item Name *',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              hintText: 'e.g., Winter Jackets, Children Books, etc.',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-              ),
-              filled: true,
-              fillColor: Color.fromRGBO(245, 245, 245, 1),
-              prefixIcon: Icon(Icons.label_outline),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter item name';
-              }
-              if (value.length < 5) {
-                return 'Title must be at least 5 characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 15),
-
-          // Quantity
-          TextFormField(
-            controller: _quantityController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Quantity',
-              hintText: 'e.g., 1, 5, 10',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-              ),
-              filled: true,
-              fillColor: Color.fromRGBO(245, 245, 245, 1),
-              prefixIcon: Icon(Icons.production_quantity_limits),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter quantity';
-              }
-              final number = int.tryParse(value);
-              if (number == null) {
-                return 'Please enter a valid number';
-              }
-              if (number <= 0) {
-                return 'Quantity must be greater than 0';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 15),
-
-          // Condition
-          const Text(
-            'Condition *',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _selectedCondition,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-              ),
-              filled: true,
-              fillColor: Color.fromRGBO(245, 245, 245, 1),
-            ),
-            hint: const Text('Select condition'),
-            items: _conditions.map((condition) {
-              return DropdownMenuItem(
-                value: condition,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getConditionColor(condition),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(condition),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedCondition = value;
-              });
-            },
-            validator: (value) {
-              if (value == null) {
-                return 'Please select condition';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 15),
-
-          // Description
-          const Text(
-            'Description *',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _descriptionController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Describe the item you want to donate...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-              ),
-              filled: true,
-              fillColor: Color.fromRGBO(245, 245, 245, 1),
-              alignLabelWithHint: true,
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter description';
-              }
-              if (value.length < 10) {
-                return 'Description must be at least 10 characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 15),
-
-          if (_selectedCategory == 'Clothing') _buildClothingFields(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClothingFields() {
-    return Column(
-      children: [
-        const SizedBox(height: 15),
-        const Divider(),
-        const SizedBox(height: 15),
-        const Text(
-          'Clothing Details (Optional)',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 15),
-        DropdownButtonFormField<String>(
-          value: _selectedGender,
-          decoration: const InputDecoration(
-            labelText: 'Gender',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-          items: _genders.map((gender) {
-            return DropdownMenuItem(
-              value: gender,
-              child: Text(gender),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              _selectedGender = value;
-            });
-          },
-        ),
-        const SizedBox(height: 15),
-        DropdownButtonFormField<String>(
-          value: _sizeController.text.isEmpty ? null : _sizeController.text,
-          decoration: const InputDecoration(
-            labelText: 'Size',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-          items: _sizes.map((size) {
-            return DropdownMenuItem(
-              value: size,
-              child: Text(size),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              _sizeController.text = value ?? '';
-            });
-          },
-        ),
-        const SizedBox(height: 15),
-        TextFormField(
-          controller: _brandController,
-          decoration: const InputDecoration(
-            labelText: 'Brand',
-            hintText: 'e.g., Nike, H&M, Local Market',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-        ),
-        const SizedBox(height: 15),
-        TextFormField(
-          controller: _colorController,
-          decoration: const InputDecoration(
-            labelText: 'Color',
-            hintText: 'e.g., Blue, Red, Multi',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-        ),
-      ],
-    );
-  }
-
-  //  STEP 2: DONATION DETAILS
-  Widget _buildDonationDetailsStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'How urgent is this donation? *',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _selectedUrgency,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-          hint: const Text('Select urgency'),
-          items: _urgencies.map((urgency) {
-            return DropdownMenuItem(
-              value: urgency,
-              child: Row(
-                children: [
-                  Icon(
-                    _getUrgencyIcon(urgency),
-                    size: 16,
-                    color: _getUrgencyColor(urgency),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(urgency),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              _selectedUrgency = value;
-            });
-          },
-          validator: (value) {
-            if (value == null) {
-              return 'Please select urgency';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 25),
-        const Text(
-          'Pickup Location *',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _locationController,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.location_on),
-            hintText: 'Enter your city/locality for pickup',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter location';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 15),
-        const Text(
-          'Contact Number *',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _contactController,
-          keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.phone),
-            hintText: 'Mobile number for pickup coordination',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(10)),
-            ),
-            filled: true,
-            fillColor: Color.fromRGBO(245, 245, 245, 1),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter contact number';
-            }
-            if (value.length < 10) {
-              return 'Enter valid 10-digit number';
-            }
-            return null;
-          },
-        ),
-        const SizedBox(height: 25),
-        const Text(
-          'Pickup Options',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 10),
-        SwitchListTile(
-          title: const Text('Recipient can pickup'),
-          subtitle: const Text('They will come to your location'),
-          value: _canPickup,
-          onChanged: (value) {
-            setState(() {
-              _canPickup = value;
-            });
-          },
-          secondary: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.withAlpha(26),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.person_pin, color: Colors.blue),
-          ),
-        ),
-        SwitchListTile(
-          title: const Text('I can deliver'),
-          subtitle: const Text('You will drop off the items'),
-          value: _canDeliver,
-          onChanged: (value) {
-            setState(() {
-              _canDeliver = value;
-            });
-          },
-          secondary: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green.withAlpha(26),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.delivery_dining, color: Colors.green),
-          ),
-        ),
-        const SizedBox(height: 15),
-        SwitchListTile(
-          title: const Text('Donate anonymously'),
-          subtitle: const Text('Your name will not be shown publicly'),
-          value: _isAnonymous,
-          onChanged: (value) {
-            setState(() {
-              _isAnonymous = value;
-            });
-          },
-          secondary: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.purple.withAlpha(26),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.visibility_off, color: Colors.purple),
-          ),
-        ),
-      ],
-    );
-  }
-
-  //  STEP 3: REVIEW
-  Widget _buildReviewStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+        // Photos section
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.orange.withAlpha(26),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.orange.withAlpha(77)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
           ),
-          child: const Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.favorite, color: Colors.orange, size: 30),
-              SizedBox(width: 15),
-              Expanded(
+              const Text('Add Photos',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text('Show what you\'re donating',
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 12),
+              if (_selectedImages.isNotEmpty)
+                SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedImages.length,
+                    itemBuilder: (ctx, index) => Stack(
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          margin: const EdgeInsets.only(right: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: kIsWeb
+                                ? Image.network(_selectedImages[index].path,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.broken_image)))
+                                : Image.file(File(_selectedImages[index].path),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.broken_image))),
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 12,
+                          child: GestureDetector(
+                            onTap: () => _removeImage(index),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                  color: Colors.red, shape: BoxShape.circle),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_selectedImages.length < 5)
+                OutlinedButton.icon(
+                  onPressed: _pickImages,
+                  icon: const Icon(Icons.add_photo_alternate,
+                      color: Color(0xFF4CAF50)),
+                  label: const Text('Add Photos',
+                      style: TextStyle(color: Color(0xFF4CAF50))),
+                  style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF4CAF50)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12))),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Item details form
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Item Details',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _titleController,
+                decoration: InputDecoration(
+                  labelText: 'Item Name *',
+                  hintText: 'e.g., Winter Jacket, Children\'s Books',
+                  prefixIcon:
+                      const Icon(Icons.label_outline, color: Color(0xFF4CAF50)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter item name'
+                    : (value.length < 5
+                        ? 'Title must be at least 5 characters'
+                        : null),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Quantity *',
+                  hintText: 'e.g., 1, 5, 10',
+                  prefixIcon: const Icon(Icons.production_quantity_limits,
+                      color: Color(0xFF4CAF50)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty)
+                    return 'Please enter quantity';
+                  final number = int.tryParse(value);
+                  if (number == null || number <= 0)
+                    return 'Please enter a valid quantity';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Thank you for your generosity!',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Your donation will be reviewed by our team.',
-                      style: TextStyle(color: Colors.grey),
+                    const Text('Condition *',
+                        style: TextStyle(fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: _conditions.map((condition) {
+                        final isSelected =
+                            _selectedCondition == condition['name'];
+                        return FilterChip(
+                          label: Text(condition['name'] as String),
+                          selected: isSelected,
+                          onSelected: (selected) => setState(() =>
+                              _selectedCondition = selected
+                                  ? condition['name'] as String
+                                  : null),
+                          backgroundColor: Colors.grey.shade50,
+                          selectedColor:
+                              (condition['color'] as Color).withAlpha(51),
+                          checkmarkColor: condition['color'] as Color,
+                          labelStyle: TextStyle(
+                              color: isSelected
+                                  ? condition['color'] as Color
+                                  : Colors.grey.shade700),
+                          avatar: Icon(condition['icon'] as IconData,
+                              size: 16,
+                              color: isSelected
+                                  ? condition['color'] as Color
+                                  : Colors.grey),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 25),
-        const Text(
-          'Donation Summary',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        const SizedBox(height: 15),
-        _buildReviewItem('Category', _selectedCategory ?? 'Not selected'),
-        _buildReviewItem(
-            'Item',
-            _titleController.text.isNotEmpty
-                ? _titleController.text
-                : 'Not provided'),
-        _buildReviewItem(
-            'Quantity',
-            _quantityController.text.isNotEmpty
-                ? _quantityController.text
-                : '1'),
-        _buildReviewItem('Condition', _selectedCondition ?? 'Not selected'),
-        if (_brandController.text.isNotEmpty)
-          _buildReviewItem('Brand', _brandController.text),
-        if (_sizeController.text.isNotEmpty)
-          _buildReviewItem('Size', _sizeController.text),
-        _buildReviewItem('Urgency', _selectedUrgency ?? 'Not selected'),
-        _buildReviewItem(
-            'Location',
-            _locationController.text.isNotEmpty
-                ? _locationController.text
-                : 'Not provided'),
-        _buildReviewItem(
-            'Contact',
-            _contactController.text.isNotEmpty
-                ? _contactController.text
-                : 'Not provided'),
-        _buildReviewItem('Pickup', _canPickup ? 'Available' : 'Not available'),
-        _buildReviewItem(
-            'Delivery', _canDeliver ? 'Available' : 'Not available'),
-        _buildReviewItem('Anonymous', _isAnonymous ? 'Yes' : 'No'),
-        _buildReviewItem('Photos', '${_selectedImages.length} selected'),
-        const SizedBox(height: 25),
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.blue.withAlpha(13),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '📋 What happens next?',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Description *',
+                  hintText: 'Describe the item you want to donate...',
+                  prefixIcon:
+                      const Icon(Icons.description, color: Color(0xFF4CAF50)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter description'
+                    : (value.length < 10
+                        ? 'Description must be at least 10 characters'
+                        : null),
               ),
-              SizedBox(height: 8),
-              Text('1. Our team will review your donation'),
-              Text('2. You will be contacted for coordination'),
-              Text('3. Once completed, it will appear in our impact stories'),
+              if (_selectedCategory == 'Clothing') ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                const Text('Clothing Details (Optional)',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: _selectedGender,
+                  decoration: InputDecoration(
+                    labelText: 'Gender',
+                    prefixIcon:
+                        const Icon(Icons.person, color: Color(0xFF4CAF50)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                  items: _genders
+                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                      .toList(),
+                  onChanged: (value) => setState(() => _selectedGender = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _sizeController.text.isEmpty
+                      ? null
+                      : _sizeController.text,
+                  decoration: InputDecoration(
+                    labelText: 'Size',
+                    prefixIcon:
+                        const Icon(Icons.straighten, color: Color(0xFF4CAF50)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                  items: _sizes
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _sizeController.text = value ?? ''),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _brandController,
+                  decoration: InputDecoration(
+                    labelText: 'Brand',
+                    prefixIcon: const Icon(Icons.branding_watermark,
+                        color: Color(0xFF4CAF50)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _colorController,
+                  decoration: InputDecoration(
+                    labelText: 'Color',
+                    prefixIcon:
+                        const Icon(Icons.color_lens, color: Color(0xFF4CAF50)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDonationDetailsStep() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('How urgent is this?',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: _urgencies.map((urgency) {
+                  final isSelected = _selectedUrgency == urgency['name'];
+                  return ChoiceChip(
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(urgency['emoji'] as String,
+                            style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 4),
+                        Text(urgency['name'] as String),
+                      ],
+                    ),
+                    selected: isSelected,
+                    onSelected: (selected) => setState(() => _selectedUrgency =
+                        selected ? urgency['name'] as String : null),
+                    selectedColor: (urgency['color'] as Color).withAlpha(51),
+                    backgroundColor: Colors.grey.shade50,
+                    labelStyle: TextStyle(
+                        color: isSelected
+                            ? urgency['color'] as Color
+                            : Colors.grey.shade700),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Pickup Location',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _locationController,
+                decoration: InputDecoration(
+                  prefixIcon:
+                      const Icon(Icons.location_on, color: Color(0xFF4CAF50)),
+                  hintText: 'Enter your city or locality',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter location'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              const Text('Contact Number',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _contactController,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.phone, color: Color(0xFF4CAF50)),
+                  hintText: 'Your mobile number',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter contact number'
+                    : (value.length < 10 ? 'Enter valid number' : null),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.grey.withAlpha(20),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Privacy Settings',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _buildToggleTile(
+                title: 'Donate anonymously',
+                subtitle: 'Your name will not be shown publicly',
+                value: _isAnonymous,
+                onChanged: (v) => setState(() => _isAnonymous = v),
+                icon: Icons.visibility_off,
+                color: const Color(0xFF9C27B0),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggleTile(
+      {required String title,
+      required String subtitle,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+      required IconData icon,
+      required Color color}) {
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      value: value,
+      onChanged: onChanged,
+      secondary: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+            color: color.withAlpha(26),
+            borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: color),
+      ),
+      activeColor: color,
+    );
+  }
+
+  Widget _buildReviewStep() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.grey.withAlpha(20),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50).withAlpha(26),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.favorite, color: Color(0xFF4CAF50), size: 32),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Thank you for your generosity!',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      SizedBox(height: 4),
+                      Text('Your donation will make a difference.',
+                          style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Donation Summary',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _buildReviewItem('Category', _selectedCategory ?? 'Not selected'),
+          _buildReviewItem('Item', _titleController.text),
+          _buildReviewItem('Quantity', _quantityController.text),
+          _buildReviewItem('Condition', _selectedCondition ?? 'Not selected'),
+          if (_brandController.text.isNotEmpty)
+            _buildReviewItem('Brand', _brandController.text),
+          if (_sizeController.text.isNotEmpty)
+            _buildReviewItem('Size', _sizeController.text),
+          _buildReviewItem(
+              'Urgency', _selectedUrgency?.split(' ').first ?? 'Not selected'),
+          _buildReviewItem('Location', _locationController.text),
+          _buildReviewItem('Contact', _contactController.text),
+          _buildReviewItem('Anonymous', _isAnonymous ? 'Yes' : 'No'),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withAlpha(13),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text('📋 What happens next?',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                SizedBox(height: 8),
+                Text('1. Our team will review your donation'),
+                Text('2. You will be contacted for coordination'),
+                Text('3. Once completed, it will appear in our impact stories'),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1178,27 +1188,18 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+              width: 100,
+              child: Text(label,
+                  style: const TextStyle(
+                      color: Colors.grey, fontWeight: FontWeight.w500))),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ),
+              child: Text(value,
+                  style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
     );
   }
 
-  //  BOTTOM BUTTONS
   Widget _buildBottomButtons() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1206,10 +1207,9 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withAlpha(26),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
+              color: Colors.grey.withAlpha(26),
+              blurRadius: 10,
+              offset: const Offset(0, -5))
         ],
       ),
       child: Row(
@@ -1217,37 +1217,37 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
           if (_currentStep > 0)
             Expanded(
               child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _currentStep--;
-                  });
-                },
+                onPressed: () => setState(() => _currentStep--),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  side: const BorderSide(color: Colors.orange),
-                  foregroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Color(0xFF4CAF50)),
+                  foregroundColor: const Color(0xFF4CAF50),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Back'),
               ),
             ),
-          if (_currentStep > 0) const SizedBox(width: 15),
+          if (_currentStep > 0) const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
               onPressed: () {
                 if (_currentStep == 2) {
                   _submitForm();
                 } else if (_validateCurrentStep()) {
-                  setState(() {
-                    _currentStep++;
-                  });
+                  setState(() => _currentStep++);
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: const Color(0xFF4CAF50),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text(_currentStep == 2 ? 'Submit for Review' : 'Continue'),
+              child: Text(_currentStep == 2 ? 'Submit Donation' : 'Continue',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -1255,109 +1255,61 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     );
   }
 
-  //  HELPER FUNCTIONS
   bool _validateCurrentStep() {
     switch (_currentStep) {
       case 0:
         if (_selectedCategory == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please select a category'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _showError('Please select a category');
           return false;
         }
         return _formKey.currentState?.validate() ?? false;
       case 1:
         if (_selectedUrgency == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please select urgency'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _showError('Please select urgency');
           return false;
         }
         if (_locationController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please enter pickup location'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _showError('Please enter pickup location');
           return false;
         }
         if (_contactController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please enter contact number'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _showError('Please enter contact number');
           return false;
         }
         return true;
       default:
         return true;
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating));
   }
 
   void _showExitConfirmation() {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Discard Donation?'),
-          content:
-              const Text('Your donation post will not be saved. Are you sure?'),
-          actions: [
-            TextButton(
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Discard Donation?'),
+        content:
+            const Text('Your donation post will not be saved. Are you sure?'),
+        actions: [
+          TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Continue Editing'),
-            ),
-            TextButton(
+              child: const Text('Continue Editing')),
+          TextButton(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Discard'),
-            ),
-          ],
-        );
-      },
+              child: const Text('Discard')),
+        ],
+      ),
     );
-  }
-
-  Color _getConditionColor(String condition) {
-    switch (condition) {
-      case 'Like New':
-        return Colors.green;
-      case 'Excellent':
-        return Colors.teal;
-      case 'Good':
-        return Colors.blue;
-      case 'Fair':
-        return Colors.orange;
-      case 'Needs Repair':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color _getUrgencyColor(String urgency) {
-    if (urgency.contains('Immediate')) return Colors.red;
-    if (urgency.contains('Urgent')) return Colors.orange;
-    if (urgency.contains('Normal')) return Colors.blue;
-    return Colors.green;
-  }
-
-  IconData _getUrgencyIcon(String urgency) {
-    if (urgency.contains('Immediate')) return Icons.warning;
-    if (urgency.contains('Urgent')) return Icons.access_time;
-    if (urgency.contains('Normal')) return Icons.event;
-    return Icons.event_available;
   }
 }
