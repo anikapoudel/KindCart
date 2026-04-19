@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/order_provider.dart';
@@ -11,6 +13,9 @@ import '../theme_provider.dart';
 import 'auth_screen.dart';
 import 'notifications_screen.dart';
 import '../admin/approval_screen.dart';
+import '../admin/user_management_screen.dart';
+import '../admin/product_moderation_screen.dart';
+import '../admin/donation_management_screen.dart';
 import 'addproduct_screen.dart';
 import 'adddonation_screen.dart';
 import 'wishlist_screen.dart';
@@ -19,6 +24,7 @@ import 'cart_screen.dart';
 import 'my_orders_screen.dart';
 import 'about_screen.dart';
 import 'chat_screen.dart';
+import 'reports_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,6 +36,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final GlobalKey _helpSupportKey = GlobalKey();
   int _selectedIndex = 3;
+  bool _hasPendingReports = false;
 
   @override
   void initState() {
@@ -39,6 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _loadRoleSpecificData();
         _loadAnnouncements();
         _loadWishlistAndCart();
+        _checkPendingReports();
       }
     });
   }
@@ -77,6 +85,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await wishlistProvider.loadWishlist(userId);
       await cartProvider.loadCart(userId);
+    }
+  }
+
+  Future<void> _checkPendingReports() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userRole = authProvider.userRole;
+
+    // Only check for Admin and Seller roles
+    if (userRole == 'Admin' || userRole == 'Seller') {
+      try {
+        Query query = FirebaseFirestore.instance
+            .collection('reports')
+            .where('status', isEqualTo: 'pending');
+
+        // For sellers, only count reports about their products
+        if (userRole == 'Seller') {
+          final userId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+          query = query.where('sellerId', isEqualTo: userId);
+        }
+
+        final snapshot = await query.limit(1).get();
+        final hasPending = snapshot.docs.isNotEmpty;
+
+        if (mounted) {
+          setState(() {
+            _hasPendingReports = hasPending;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error checking pending reports: $e');
+      }
     }
   }
 
@@ -185,12 +224,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(_getTitle(authProvider.userRole)),
         backgroundColor: _getRoleColor(authProvider.userRole),
         foregroundColor: Colors.white,
-        leading: userRole == 'Buyer'
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.pop(context),
-              )
-            : null,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
             icon: Icon(
@@ -227,6 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await _loadRoleSpecificData();
                 await _loadAnnouncements();
                 await _loadWishlistAndCart();
+                await _checkPendingReports();
               },
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -788,52 +826,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Colors.deepPurple, Colors.purple],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        const Text('Admin Tools',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 2,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildAdminMenuItem(
+                  icon: Icons.people,
+                  title: 'Manage Users',
+                  subtitle: 'View all registered users',
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const UserManagementScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildAdminMenuItem(
+                  icon: Icons.inventory,
+                  title: 'Manage Products',
+                  subtitle: 'Review and moderate listings',
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) =>
+                              const ProductModerationScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildAdminMenuItem(
+                  icon: Icons.volunteer_activism,
+                  title: 'Manage Donations',
+                  subtitle: 'Review and manage donations',
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) =>
+                              const DonationManagementScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildAdminMenuItem(
+                  icon: Icons.check_circle,
+                  title: 'Approve Sellers',
+                  subtitle: 'Review pending seller requests',
+                  color: Colors.orange,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const SellerApprovalScreen()),
+                    );
+                  },
+                ),
+              ],
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              _buildAdminMenuItem(
-                icon: Icons.check_circle,
-                title: 'Approve Sellers',
-                subtitle: 'Review pending seller requests',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const SellerApprovalScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              _buildAdminMenuItem(
-                icon: Icons.people,
-                title: 'Manage Users',
-                subtitle: 'View all registered users',
-                onTap: () => _showComingSoon(),
-              ),
-              const SizedBox(height: 8),
-              _buildAdminMenuItem(
-                icon: Icons.inventory,
-                title: 'Manage Products',
-                subtitle: 'Review and moderate listings',
-                onTap: () => _showComingSoon(),
-              ),
-            ],
           ),
         ),
       ],
     );
   }
 
+  Widget _buildAdminMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withAlpha(15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(30)),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(title, style: TextStyle(color: color)),
+        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600])),
+        trailing: Icon(Icons.arrow_forward_ios, color: color, size: 16),
+        onTap: onTap,
+      ),
+    );
+  }
+
   Widget _buildCommonSettings() {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final userRole = authProvider.userRole;
+
     return Consumer<AnnouncementProvider>(
       builder: (context, announcementProvider, child) {
         return Column(
@@ -862,6 +957,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
+                  // Reports section with red dot for Admin and Seller
+                  if (userRole == 'Admin' || userRole == 'Seller')
+                    _buildMenuItemWithRedDot(
+                      icon: Icons.flag,
+                      title: 'Reports',
+                      subtitle: 'View and manage reports',
+                      showRedDot: _hasPendingReports,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ReportsScreen()),
+                        );
+                      },
+                    ),
+                  if (userRole == 'Admin' || userRole == 'Seller')
+                    const Divider(height: 1, indent: 16, endIndent: 16),
                   _buildMenuItem(
                     key: _helpSupportKey,
                     icon: Icons.help,
@@ -953,25 +1065,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAdminMenuItem({
+  // method for menu items with red dot indicator
+  Widget _buildMenuItemWithRedDot({
+    Key? key,
     required IconData icon,
     required String title,
     required String subtitle,
+    required bool showRedDot,
     required VoidCallback onTap,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(25),
-        borderRadius: BorderRadius.circular(12),
+    return ListTile(
+      key: key,
+      leading: Icon(icon, color: Colors.green),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showRedDot)
+            Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+            ),
+          const SizedBox(width: 8),
+          const Icon(Icons.arrow_forward_ios, size: 16),
+        ],
       ),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.white),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
-        trailing:
-            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-        onTap: onTap,
-      ),
+      onTap: onTap,
     );
   }
 
@@ -1199,15 +1323,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Logout'),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Coming soon!'),
-        duration: Duration(seconds: 1),
       ),
     );
   }
