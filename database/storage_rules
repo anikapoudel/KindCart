@@ -1,0 +1,85 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      // This requires Firestore access - make sure your Firebase project has Firestore enabled
+      return request.auth != null && 
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+    
+    // Helper function to check file constraints
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 &&  // Max 5MB
+             request.resource.contentType.matches('image/.*');  // Must be image
+    }
+    
+    // Helper function for profile pic constraints (smaller size)
+    function isValidProfileImage() {
+      return request.resource.size < 2 * 1024 * 1024 &&  // Max 2MB
+             request.resource.contentType.matches('image/.*');
+    }
+    
+    // Product images - organized by seller
+    match /product_images/{sellerId}/{fileName} {
+      // Anyone can view product images
+      allow read: if true;
+      
+      // Write operations (upload/update) - seller only with validation
+      allow write: if request.auth != null && 
+        (request.auth.uid == sellerId || isAdmin()) &&
+        isValidImage();
+      
+      // Explicit delete permission - seller or admin can delete
+      allow delete: if request.auth != null && 
+        (request.auth.uid == sellerId || isAdmin());
+    }
+    
+    // Profile pictures
+    match /profile_images/{userId}/{fileName} {
+      // Anyone can view profile pics
+      allow read: if true;
+      
+      // Write operations - user only with validation
+      allow write: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin()) &&
+        isValidProfileImage();
+      
+      // Explicit delete permission - user or admin can delete
+      allow delete: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin());
+    }
+    
+    // Donation images
+    match /donation_images/{donorId}/{fileName} {
+      // Anyone can view donation images
+      allow read: if true;
+      
+      // Write operations - donor only with validation
+      allow write: if request.auth != null && 
+        (request.auth.uid == donorId || isAdmin()) &&
+        isValidImage();
+      
+      // Explicit delete permission - donor or admin can delete
+      allow delete: if request.auth != null && 
+        (request.auth.uid == donorId || isAdmin());
+    }
+    
+        // Chat images - sent by authenticated users
+    match /chat_images/{chatId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    
+    // Block everything else by default
+    match /{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+      allow delete: if false;
+    }
+  }
+}
