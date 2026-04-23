@@ -1,1 +1,193 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isSeller() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Seller';
+    }
+
+    function isSellerApproved() {
+      return isSeller() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.sellerApproved == true;
+    }
+
+    function isBuyer() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Buyer';
+    }
+
+    function isDonor() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Donor';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidProductData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['title', 'description', 'price', 'category', 'condition', 'sellerId', 'imageUrls']) &&
+             data.title is string && data.title.size() >= 5 &&
+             data.description is string && data.description.size() >= 10 &&
+             data.price is number && data.price > 0 && data.price < 1000000 &&
+             data.category in ['Electronics', 'Clothing', 'Furniture', 'Books', 'Sports', 'Toys', 'Home & Garden', 'Tools', 'Vehicles', 'Other'] &&
+             data.condition in ['Brand New', 'Like New', 'Very Good', 'Good', 'Fair', 'For Parts/Not Working'] &&
+             data.imageUrls.size() > 0 && data.imageUrls.size() <= 10;
+    }
+
+    function isValidUserData() {
+      let data = request.resource.data;
+      return data.email is string &&
+             data.name is string && data.name.size() > 0 &&
+             (data.role in ['Buyer', 'Seller', 'Donor', 'Admin']);
+    }
+
+    function isValidOrderData() {
+      let data = request.resource.data;
+      return data.buyerId is string &&
+             data.sellerId is string &&
+             data.items is list && data.items.size() > 0 &&
+             data.total is number && data.total > 0;
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if request.auth != null && request.auth.uid == userId && isValidUserData();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /wishlist/{productId} {
+    allow read: if isAuthenticated() && request.auth.uid == userId;
+    allow create: if isAuthenticated() && request.auth.uid == userId;
+    allow update: if isAuthenticated() && request.auth.uid == userId;
+    allow delete: if isAuthenticated() && request.auth.uid == userId;
+  }
+  
+      match /notifications/{notificationId} {
+      allow read, write, delete: if isOwner(userId);
+      }
+    }
+    
+     // CARTS COLLECTION
+			match /carts/{userId} {
+  	   allow read, write: if isAuthenticated() && request.auth.uid == userId;
+	}
+
+    // PRODUCTS COLLECTION
+    match /products/{productId} {
+  allow read: if 
+    // Public access for guests
+    (resource.data.isAvailable == true &&
+     resource.data.isActive == true &&
+     resource.data.isHidden == false)
+
+    //  OR logged-in users can read all
+    || isAuthenticated();      allow create: if isSellerApproved() &&
+                     request.resource.data.sellerId == request.auth.uid &&
+                     isValidProductData();
+      allow update: if (isAuthenticated() && resource.data.sellerId == request.auth.uid) || isAdmin();
+      allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    // DONATIONS COLLECTION
+    match /donations/{donationId} {
+      allow read: if resource.data.isAvailable == true ||
+                   resource.data.status == 2 ||
+                   (isAuthenticated() && resource.data.donorId == request.auth.uid) ||
+                   isAdmin();
+      allow create: if isDonor() &&
+                     request.resource.data.donorId == request.auth.uid;
+      allow update: if (isAuthenticated() && resource.data.donorId == request.auth.uid) ||
+                      isAdmin();
+      allow delete: if isAuthenticated() && (
+                      resource.data.donorId == request.auth.uid || isAdmin());
+    }
+
+    // ORDERS COLLECTION
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+                    resource.data.buyerId == request.auth.uid ||
+                    resource.data.sellerId == request.auth.uid ||
+                    isAdmin());
+      allow create: if isAuthenticated() &&
+                     request.resource.data.buyerId == request.auth.uid &&
+                     isValidOrderData();
+      allow update: if isAuthenticated() && (
+                      (resource.data.buyerId == request.auth.uid &&
+                       request.resource.data.orderStatus == "cancelled") ||
+                      (resource.data.sellerId == request.auth.uid) ||
+                      isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // CHATS COLLECTION
+    match /chats/{chatId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                     request.resource.data.buyerId != request.resource.data.sellerId;
+      allow update: if isAuthenticated() && (
+                      resource.data.buyerId == request.auth.uid ||
+                      resource.data.sellerId == request.auth.uid);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read, create, update: if isAuthenticated();
+        allow delete: if false;
+      }
+    }
+
+    // REVIEWS COLLECTION
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ANNOUNCEMENTS COLLECTION
+    match /announcements/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAuthenticated() &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReadBy']);
+      allow delete: if isAdmin();
+    }
+
+    // CATEGORIES COLLECTION
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // REPORTS COLLECTION
+     match /reports/{reportId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin() || 
+                  (isSeller() && resource.data.sellerId == request.auth.uid);
+      allow update: if isAdmin() || 
+                    (isSeller() && resource.data.sellerId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ACTIVITY LOGS COLLECTION
+    match /activity_logs/{logId} {
+      allow read, write, create: if isAdmin();
+    }
+
+  } 
+}   
