@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:ui' as ui;
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/chat_model.dart';
@@ -117,7 +118,6 @@ class _UserChatScreenState extends State<UserChatScreen> {
     setState(() => _isSendingImage = true);
 
     try {
-      // readAsBytes() for cross-platform
       final imageBytes = await pickedFile.readAsBytes();
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_$senderId.jpg';
 
@@ -163,7 +163,9 @@ class _UserChatScreenState extends State<UserChatScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
             child: const Text('Yes, Sold'),
           ),
         ],
@@ -193,7 +195,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Item marked as sold'),
-            backgroundColor: Colors.green,
+            backgroundColor: Color(0xFF4CAF50),
           ),
         );
       } catch (e) {
@@ -248,33 +250,151 @@ class _UserChatScreenState extends State<UserChatScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final chatProvider = Provider.of<ChatProvider>(context);
     final isSeller = authProvider.user?.uid == widget.otherUserId;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.otherUserName,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
             ),
-            Text(
-              widget.productTitle,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      // Back button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withAlpha(20),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white, size: 24),
+                          onPressed: () => Navigator.pop(context),
+                          padding: const EdgeInsets.all(10),
+                          constraints:
+                              const BoxConstraints(minWidth: 44, minHeight: 44),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // User info section
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.otherUserName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isWebLayout ? 18 : 16,
+                                letterSpacing: 0.5,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(30),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.shopping_bag_rounded,
+                                    size: isWebLayout ? 12 : 10,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      widget.productTitle,
+                                      style: TextStyle(
+                                        fontSize: isWebLayout ? 11 : 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Mark as sold button for sellers
+                      if (isSeller)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(30),
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(20),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.check_circle_outline,
+                                color: Colors.white, size: 24),
+                            onPressed: _markAsSold,
+                            tooltip: 'Mark as Sold',
+                            padding: const EdgeInsets.all(10),
+                            constraints: const BoxConstraints(
+                                minWidth: 44, minHeight: 44),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
         ),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        actions: [
-          if (isSeller)
-            IconButton(
-              icon: const Icon(Icons.check_circle, color: Colors.white),
-              onPressed: _markAsSold,
-              tooltip: 'Mark as Sold',
-            ),
-        ],
       ),
       body: Column(
         children: [
@@ -324,7 +444,13 @@ class _UserChatScreenState extends State<UserChatScreen> {
           if (_isSendingImage)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.green.shade50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.green[50]!, Colors.pink[50]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
               child: const Row(
                 children: [
                   SizedBox(
@@ -332,13 +458,13 @@ class _UserChatScreenState extends State<UserChatScreen> {
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.green,
+                      color: Color(0xFF4CAF50),
                     ),
                   ),
                   SizedBox(width: 10),
                   Text(
                     'Sending image...',
-                    style: TextStyle(color: Colors.green, fontSize: 13),
+                    style: TextStyle(color: Color(0xFF2E7D32), fontSize: 13),
                   ),
                 ],
               ),
@@ -360,11 +486,22 @@ class _UserChatScreenState extends State<UserChatScreen> {
             child: Row(
               children: [
                 // Image picker button
-                IconButton(
-                  icon: const Icon(Icons.image_outlined, color: Colors.green),
-                  onPressed: _isSendingImage ? null : _sendImage,
-                  tooltip: 'Send image',
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.image_outlined, color: Colors.white),
+                    onPressed: _isSendingImage ? null : _sendImage,
+                    tooltip: 'Send image',
+                  ),
                 ),
+                const SizedBox(width: 8),
                 // Text field
                 Expanded(
                   child: TextField(
@@ -388,8 +525,15 @@ class _UserChatScreenState extends State<UserChatScreen> {
                 ),
                 const SizedBox(width: 8),
                 // Send button
-                CircleAvatar(
-                  backgroundColor: Colors.green,
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE91E63), Color(0xFFF06292)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white, size: 20),
                     onPressed: _sendMessage,
@@ -414,7 +558,14 @@ class _UserChatScreenState extends State<UserChatScreen> {
             ? const EdgeInsets.all(4)
             : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe ? Colors.green : Colors.grey[200],
+          gradient: isMe
+              ? const LinearGradient(
+                  colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: !isMe ? Colors.grey[200] : null,
           borderRadius: BorderRadius.circular(20).copyWith(
             bottomRight: isMe ? const Radius.circular(4) : null,
             bottomLeft: !isMe ? const Radius.circular(4) : null,
@@ -438,7 +589,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                    color: Color(0xFF2E7D32),
                   ),
                 ),
               ),
@@ -472,7 +623,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                                     ? progress.cumulativeBytesLoaded /
                                         progress.expectedTotalBytes!
                                     : null,
-                                color: Colors.green,
+                                color: const Color(0xFF4CAF50),
                               ),
                             ),
                           );
@@ -496,7 +647,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
               Text(
                 message.content,
                 style: TextStyle(
-                  color: isMe ? Colors.white : Colors.black,
+                  color: isMe ? Colors.white : Colors.black87,
                 ),
               ),
 
@@ -509,7 +660,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                 _formatTime(message.timestamp),
                 style: TextStyle(
                   fontSize: 10,
-                  color: isMe ? Colors.white70 : Colors.grey,
+                  color: isMe ? Colors.white70 : Colors.grey[600],
                 ),
               ),
             ),
@@ -524,7 +675,11 @@ class _UserChatScreenState extends State<UserChatScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        gradient: LinearGradient(
+          colors: [Colors.green[50]!, Colors.pink[50]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
