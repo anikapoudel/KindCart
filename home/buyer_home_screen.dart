@@ -20,6 +20,7 @@ import '../../theme_provider.dart';
 import '../../services/navigation_helper.dart';
 import '../../models/product_model.dart';
 import '../screens/chats_list_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class BuyerHomeScreen extends StatefulWidget {
   const BuyerHomeScreen({super.key});
@@ -83,7 +84,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     return totalUnread;
   }
 
-  //  up to 30 featured products (all latest items)
   List<ProductModel> _getFeaturedProducts(List<ProductModel> products) {
     final sortedProducts = List<ProductModel>.from(products);
     sortedProducts.sort((a, b) {
@@ -92,10 +92,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
       }
       return 0;
     });
-
-    // Returning up to 30 items (or all if less than 30)
-    return sortedProducts.length > 30
-        ? sortedProducts.take(30).toList()
+    return sortedProducts.length > 32
+        ? sortedProducts.take(32).toList()
         : sortedProducts;
   }
 
@@ -110,14 +108,12 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
 
     switch (index) {
       case 0: // Home
-        // Already on home, do nothing
         break;
       case 1:
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const CartScreen()),
         ).then((_) {
-          // When coming back from Cart, reset to home index
           if (mounted) setState(() => _selectedIndex = 0);
         });
         break;
@@ -164,6 +160,8 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     final featuredProducts = _getFeaturedProducts(productProvider.products);
     final donationItems = _getDonationItems(productProvider.products);
     final bool isWebLayout = screenWidth > 800;
+    final bool isMobileLayout = screenWidth < 600;
+    final bool isTabletLayout = screenWidth >= 600 && screenWidth < 900;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -392,7 +390,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
 
               const SizedBox(height: 12),
 
-              //  grid  to show up to 30 items
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GridView.builder(
@@ -420,8 +417,6 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
               ),
 
               const SizedBox(height: 24),
-
-              // Free Donations
               if (donationItems.isNotEmpty) ...[
                 _SectionHeader(
                   title: 'Free Donations',
@@ -443,9 +438,10 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
                 ),
                 const SizedBox(height: 24),
               ],
+              if (isWebLayout)
+                _buildCompactFooter(context, isMobileLayout, isTabletLayout),
 
-              // Compact Footer
-              if (isWebLayout) _buildCompactFooter(isDark, context),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -494,118 +490,528 @@ class _BuyerHomeScreenState extends State<BuyerHomeScreen>
     );
   }
 
-  // Compact Footer
-  Widget _buildCompactFooter(bool isDark, BuildContext context) {
+//footer
+  Widget _buildCompactFooter(
+      BuildContext context, bool isMobileLayout, bool isTabletLayout) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobileLayout ? 20 : 40,
+        vertical: 24,
+      ),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF2E7D32),
-            Color(0xFF4CAF50),
-          ],
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: const [
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF388E3C),
+          ],
         ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(30),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AboutScreen()),
-              );
+          // Main Footer Content
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (isMobileLayout) {
+                return _buildFooterMobileLayout(context);
+              } else if (isTabletLayout) {
+                return _buildFooterTabletLayout(context);
+              } else {
+                return _buildFooterDesktopLayout(context);
+              }
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(20),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(
-                    Icons.menu_book_rounded,
-                    color: Color(0xFF2E7D32),
-                    size: 18,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Our Mission - About Us',
-                    style: TextStyle(
-                      color: Color(0xFF2E7D32),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+          ),
+          const SizedBox(height: 20),
+          // Divider Line
+          Container(
+            height: 1,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withAlpha(0),
+                  Colors.white.withAlpha(100),
+                  Colors.white.withAlpha(0),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            width: 80,
-            height: 1,
-            color: Colors.white.withAlpha(80),
+          // Bottom Bar
+          _buildFooterBottomBar(context, isMobileLayout),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterDesktopLayout(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: _buildFooterLogoSection(context),
+        ),
+        Expanded(
+          flex: 1,
+          child: Center(
+            child: _buildFooterContactSection(context),
           ),
-          const SizedBox(height: 12),
+        ),
+        Expanded(
+          flex: 1,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 40),
+            child: _buildFooterSocialSection(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterTabletLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildFooterLogoSection(context)),
+            const SizedBox(width: 40),
+            Expanded(child: _buildFooterContactSection(context)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(child: _buildFooterSocialSection(context)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterMobileLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterLogoSection(context),
+        const SizedBox(height: 24),
+        _buildFooterContactSection(context),
+        const SizedBox(height: 24),
+        _buildFooterSocialSection(context),
+      ],
+    );
+  }
+
+  Widget _buildFooterLogoSection(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AboutScreen()),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '🌱',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withAlpha(230),
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Colors.white, Colors.white70],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withAlpha(80),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/Logo.png',
+                    width: 45,
+                    height: 45,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.green.withAlpha(30),
+                        child: const Icon(
+                          Icons.eco,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                'One purchase at a time',
+              const SizedBox(width: 10),
+              const Text(
+                'KindCart',
                 style: TextStyle(
-                  color: Colors.white.withAlpha(230),
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Container(
-            width: 80,
-            height: 1,
-            color: Colors.white.withAlpha(80),
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: const Text(
+              'Sustainable second-hand marketplace connecting buyers, sellers, and donors for a greener future.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
-          Text(
-            '© ${DateTime.now().year} KindCart',
-            style: TextStyle(
-              color: Colors.white.withAlpha(180),
-              fontSize: 11,
-              fontWeight: FontWeight.w400,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(25),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withAlpha(40)),
             ),
-            textAlign: TextAlign.center,
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified_rounded, color: Colors.white, size: 12),
+                SizedBox(width: 4),
+                Text(
+                  'Eco-Friendly',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFooterContactSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text(
+          'CONTACT US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildFooterContactItem(
+          icon: Icons.phone_rounded,
+          text: '+977 9847098514',
+          onTap: () => _makePhoneCall('+9779847098514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.phone_rounded,
+          text: '+977 9857059514',
+          onTap: () => _makePhoneCall('+9779857059514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.email_rounded,
+          text: 'support@kindcart.com',
+          onTap: () => _sendEmail('support@kindcart.com'),
+          isEmail: true,
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.access_time_rounded,
+          text: 'Mon-Fri: 9AM - 6PM',
+          onTap: null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterContactItem({
+    required IconData icon,
+    required String text,
+    VoidCallback? onTap,
+    bool isEmail = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor:
+            onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white70, size: 16),
+                const SizedBox(width: 10),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: onTap != null ? Colors.white : Colors.white60,
+                    fontSize: 12,
+                    decoration: onTap != null ? TextDecoration.underline : null,
+                    decorationColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterSocialSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CONNECT WITH US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildFooterSocialIcon(
+              iconData: Icons.camera_alt_rounded,
+              label: 'Instagram',
+              url: 'https://www.instagram.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFEDA77),
+                  Color(0xFFF58529),
+                  Color(0xFF8134AF),
+                  Color(0xFF515BD4),
+                ],
+                stops: [0.0, 0.2, 0.5, 0.8, 1.0],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.facebook_rounded,
+              label: 'Facebook',
+              url: 'https://www.facebook.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1877F2), Color(0xFF0C63D4)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.chat_bubble_rounded,
+              label: 'Twitter',
+              url: 'https://www.twitter.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1DA1F2), Color(0xFF0D8BD9)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.play_circle_filled_rounded,
+              label: 'YouTube',
+              url: 'https://www.youtube.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFF0000), Color(0xFFCC0000)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.work_rounded,
+              label: 'LinkedIn',
+              url: 'https://www.linkedin.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0A66C2), Color(0xFF004182)],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterSocialIcon({
+    required IconData iconData,
+    required String label,
+    required String url,
+    required Gradient gradient,
+  }) {
+    return Tooltip(
+      message: label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => _openSocialUrl(url),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(40),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              iconData,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterBottomBar(BuildContext context, bool isMobile) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterBottomLink('📍 About Us', () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AboutScreen()),
+          );
+        }),
+        const SizedBox(height: 12),
+        Text(
+          '© ${DateTime.now().year} KindCart. All rights reserved.',
+          style: TextStyle(
+            color: Colors.white.withAlpha(180),
+            fontSize: 11,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterBottomLink(String text, VoidCallback onTap) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper Methods for Footer Actions
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        _showErrorDialog(context, 'Could not make phone call');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Phone call not supported on this device');
+    }
+  }
+
+  Future<void> _sendEmail(String emailAddress) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: emailAddress,
+    );
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        _showErrorDialog(context, 'Could not open email app');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Email not supported on this device');
+    }
+  }
+
+  Future<void> _openSocialUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        _showErrorDialog(context, 'Could not open link');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Cannot open this link');
+    }
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
