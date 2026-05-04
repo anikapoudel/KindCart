@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
-import '../providers/auth_provider.dart' as app_auth;
 
 class CartProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _items = [];
