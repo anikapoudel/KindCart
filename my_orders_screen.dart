@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui' as ui;
 import '../../providers/order_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
@@ -48,16 +49,22 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
       // Print each order for debugging
       for (var order in orderProvider.buyerOrders) {
         debugPrint(
-            '  - Order ID: ${order.id}, Status: ${order.orderStatus}, Total: ₹${order.total}');
+            '  - Order ID: ${order.id}, Status: ${order.orderStatus}, Total: NPR ${order.total}');
       }
     }
 
     setState(() => _isLoading = false);
   }
 
+  // Helper method to check dark mode
+  bool _isDarkMode() {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
     final orderProvider = Provider.of<OrderProvider>(context);
+    final isDark = _isDarkMode();
 
     debugPrint(
         '🏠 Building MyOrdersScreen, orders count: ${orderProvider.buyerOrders.length}');
@@ -80,25 +87,121 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
         '📊 Order counts - Pending: ${pendingOrders.length}, Active: ${activeOrders.length}, Completed: ${completedOrders.length}');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Orders'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadOrders,
-            tooltip: 'Refresh',
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(140),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : const Color(0xFF2E7D32).withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: 'Pending', icon: Icon(Icons.pending)),
-            Tab(text: 'Active', icon: Icon(Icons.local_shipping)),
-            Tab(text: 'Completed', icon: Icon(Icons.check_circle)),
-          ],
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          // Back button
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(30),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back_rounded,
+                                  color: Colors.white),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Title
+                          const Expanded(
+                            child: Text(
+                              'My Orders',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          // Refresh button
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(30),
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.refresh,
+                                  color: Colors.white),
+                              onPressed: _loadOrders,
+                              tooltip: 'Refresh',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Tab Bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicatorColor: Colors.white,
+                        indicatorWeight: 3,
+                        indicatorSize: TabBarIndicatorSize.label,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.white70,
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                        unselectedLabelStyle: const TextStyle(
+                          fontWeight: FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                        tabs: const [
+                          Tab(
+                              text: 'Pending',
+                              icon: Icon(Icons.pending, size: 18)),
+                          Tab(
+                              text: 'Active',
+                              icon: Icon(Icons.local_shipping, size: 18)),
+                          Tab(
+                              text: 'Completed',
+                              icon: Icon(Icons.check_circle, size: 18)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
       body: _isLoading
@@ -169,7 +272,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             MaterialPageRoute(
               builder: (context) => OrderDetailScreen(order: order),
             ),
-          ).then((_) => _loadOrders()); // Refresh when coming back
+          ).then((_) => _loadOrders());
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -290,7 +393,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '₹${order.total.toStringAsFixed(0)}',
+                          'NPR ${order.total.toStringAsFixed(0)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -572,7 +675,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
             '📦 **Regarding Order #${order.id.substring(0, 8)}**\n\n';
         orderMessage += 'I would like to discuss my order:\n';
         orderMessage += '• **Items:** ${order.items.length} item(s)\n';
-        orderMessage += '• **Total:** ₹${order.total.toStringAsFixed(0)}\n';
+        orderMessage += '• **Total:** NPR ${order.total.toStringAsFixed(0)}\n';
         orderMessage += '• **Payment:** ${order.paymentMethod}\n\n';
         orderMessage +=
             'Please let me know about the delivery/pickup arrangements.';
@@ -603,7 +706,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen>
     } catch (e) {
       debugPrint('❌ Error contacting seller: $e');
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error opening chat: ${e.toString()}'),
