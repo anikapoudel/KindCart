@@ -1,0 +1,767 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:ui' as ui;
+import '../../models/order_model.dart';
+import '../../providers/order_provider.dart';
+import '../../providers/auth_provider.dart';
+
+class OrderDetailScreen extends StatefulWidget {
+  final OrderModel order;
+  final bool isSeller;
+
+  const OrderDetailScreen({
+    super.key,
+    required this.order,
+    this.isSeller = false,
+  });
+
+  @override
+  State<OrderDetailScreen> createState() => _OrderDetailScreenState();
+}
+
+class _OrderDetailScreenState extends State<OrderDetailScreen> {
+  bool _isLoading = false;
+
+  // Helper method to check dark mode
+  bool _isDarkMode() {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = _isDarkMode();
+
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : const Color(0xFF2E7D32).withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Back button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Title
+                      Expanded(
+                        child: Text(
+                          widget.isSeller ? 'Order Details' : 'My Order',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      // Actions
+                      if (!widget.isSeller &&
+                          widget.order.orderStatus == 'pending')
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(30),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.cancel_outlined,
+                                color: Colors.white),
+                            onPressed: () => _cancelOrder(),
+                            tooltip: 'Cancel Order',
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Status Card
+                  _buildStatusCard(),
+
+                  const SizedBox(height: 20),
+
+                  // Order ID and Date
+                  _buildInfoRow(
+                    'Order ID:',
+                    '#${widget.order.id}',
+                    icon: Icons.receipt,
+                  ),
+                  _buildInfoRow(
+                    'Order Date:',
+                    _formatDate(widget.order.orderDate),
+                    icon: Icons.calendar_today,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Items Section
+                  const Text(
+                    'Items Ordered',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...widget.order.items.map((item) => _buildItemCard(item)),
+
+                  const SizedBox(height: 20),
+
+                  // Price Details
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          _buildPriceRow('Subtotal', widget.order.subtotal),
+                          const Divider(),
+                          _buildPriceRow(
+                              'Delivery Fee', widget.order.deliveryFee),
+                          const Divider(),
+                          _buildPriceRow(
+                            'Total',
+                            widget.order.total,
+                            isTotal: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Delivery Address
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on,
+                                  color: Colors.green),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Delivery Address',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(widget.order.buyerName),
+                          const SizedBox(height: 4),
+                          Text(widget.order.deliveryAddress),
+                          Text(widget.order.city),
+                          if (widget.order.postalCode != null)
+                            Text('Postal Code: ${widget.order.postalCode}'),
+                          const SizedBox(height: 8),
+                          Text('Phone: ${widget.order.buyerPhone}'),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Payment Method
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            widget.order.paymentMethod == 'Cash on Delivery'
+                                ? Icons.money
+                                : Icons.contact_phone,
+                            color:
+                                widget.order.paymentMethod == 'Cash on Delivery'
+                                    ? Colors.green
+                                    : Colors.orange,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Payment Method',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  widget.order.paymentMethod,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Seller/Buyer Info
+                  if (widget.isSeller)
+                    _buildBuyerInfoCard()
+                  else
+                    _buildSellerInfoCard(),
+
+                  const SizedBox(height: 30),
+
+                  // Action Buttons
+                  if (widget.isSeller)
+                    _buildSellerActions()
+                  else
+                    _buildBuyerActions(),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildStatusCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _getStatusColor(),
+            _getStatusColor().withAlpha(180),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            _getStatusIcon(),
+            color: Colors.white,
+            size: 50,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _getStatusText(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (widget.order.expectedDeliveryDate != null)
+            Text(
+              'Expected Delivery: ${_formatDate(widget.order.expectedDeliveryDate!)}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          if (widget.order.trackingNumber != null)
+            Text(
+              'Tracking: ${widget.order.trackingNumber}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemCard(OrderItem item) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+                image: item.imageUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(item.imageUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: item.imageUrl == null
+                  ? const Icon(Icons.image_not_supported, color: Colors.grey)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.productName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Quantity: ${item.quantity}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'NPR ${item.price.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total: NPR ${(item.price * item.quantity).toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(String label, double amount, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isTotal ? 16 : 14,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            'NPR ${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: isTotal ? 16 : 14,
+              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+              color: isTotal ? Colors.green : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuyerInfoCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Buyer Information',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.green.withAlpha(20),
+                child: const Icon(Icons.person, color: Colors.green),
+              ),
+              title: Text(widget.order.buyerName),
+              subtitle: Text(widget.order.buyerEmail),
+            ),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.blue.withAlpha(20),
+                child: const Icon(Icons.phone, color: Colors.blue),
+              ),
+              title: Text(widget.order.buyerPhone),
+              subtitle: const Text('Contact Number'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSellerInfoCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Seller Information',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.orange.withAlpha(20),
+                child: const Icon(Icons.store, color: Colors.orange),
+              ),
+              title: Text(widget.order.sellerName),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBuyerActions() {
+    return const SizedBox();
+  }
+
+  Widget _buildSellerActions() {
+    if (widget.order.orderStatus == 'pending') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _confirmOrder(),
+          icon: const Icon(Icons.check_circle),
+          label: const Text('Confirm Order'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.order.orderStatus == 'confirmed' &&
+        widget.order.paymentMethod == 'Cash on Delivery') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _markAsShipped(),
+          icon: const Icon(Icons.local_shipping),
+          label: const Text('Mark as Shipped'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.purple,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.order.orderStatus == 'shipped') {
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () => _markAsDelivered(),
+          icon: const Icon(Icons.check_circle),
+          label: const Text('Mark as Delivered'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox();
+  }
+
+  Widget _buildInfoRow(String label, String value, {required IconData icon}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods
+  Color _getStatusColor() {
+    switch (widget.order.orderStatus) {
+      case 'pending':
+      case 'pending_contact':
+        return Colors.orange;
+      case 'confirmed':
+      case 'processing':
+        return Colors.blue;
+      case 'shipped':
+        return Colors.purple;
+      case 'delivered':
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon() {
+    switch (widget.order.orderStatus) {
+      case 'pending':
+      case 'pending_contact':
+        return Icons.hourglass_empty;
+      case 'confirmed':
+        return Icons.check_circle_outline;
+      case 'processing':
+        return Icons.autorenew;
+      case 'shipped':
+        return Icons.local_shipping;
+      case 'delivered':
+        return Icons.check_circle;
+      case 'completed':
+        return Icons.star;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help_outline;
+    }
+  }
+
+  String _getStatusText() {
+    switch (widget.order.orderStatus) {
+      case 'pending':
+        return 'Order Pending';
+      case 'pending_contact':
+        return 'Awaiting Contact';
+      case 'confirmed':
+        return 'Order Confirmed';
+      case 'processing':
+        return 'Processing';
+      case 'shipped':
+        return 'Shipped';
+      case 'delivered':
+        return 'Delivered';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return widget.order.orderStatus;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} at ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _confirmOrder() async {
+    setState(() => _isLoading = true);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    await orderProvider.updateOrderStatus(widget.order.id, 'confirmed');
+    if (mounted) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Order confirmed'), backgroundColor: Colors.green),
+      );
+      Navigator.pop(context, true);
+    }
+  }
+
+  void _markAsShipped() async {
+    setState(() => _isLoading = true);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    await orderProvider.updateOrderStatus(widget.order.id, 'shipped');
+    if (mounted) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Order marked as shipped'),
+            backgroundColor: Colors.green),
+      );
+      Navigator.pop(context, true);
+    }
+  }
+
+  void _markAsDelivered() async {
+    setState(() => _isLoading = true);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    await orderProvider.updateOrderStatus(widget.order.id, 'delivered');
+    if (mounted) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Order marked as delivered'),
+            backgroundColor: Colors.green),
+      );
+      Navigator.pop(context, true);
+    }
+  }
+
+  void _cancelOrder() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Order'),
+        content: const Text('Are you sure you want to cancel this order?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      final success = await orderProvider.cancelOrder(
+          widget.order.id, authProvider.user!.uid);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Order cancelled'),
+                backgroundColor: Colors.green),
+          );
+          Navigator.pop(context, true);
+        }
+      }
+    }
+  }
+
+  void _contactSeller() {
+    // Navigate to chat with seller
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Chat feature coming soon!'),
+          duration: Duration(seconds: 2)),
+    );
+  }
+}
