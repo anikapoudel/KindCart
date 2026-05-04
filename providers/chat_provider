@@ -160,7 +160,6 @@ class ChatProvider extends ChangeNotifier {
         'lastMessageIsFromBuyer': true,
         'unreadCountBuyer': 0,
         'unreadCountSeller': 1,
-        // Seller has 1 unread (the "Chat started" message)
       });
 
       debugPrint('🆕 Created new chat: $newChatId');
@@ -171,7 +170,7 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  // SEND IMAGE MESSAGE (web + mobile compatible)
+  // SEND IMAGE MESSAGE
   Future<void> sendImageMessage({
     required String chatId,
     required String senderId,
@@ -187,7 +186,7 @@ class ChatProvider extends ChangeNotifier {
         throw Exception('Chat not found. Please restart the conversation.');
       }
 
-      // Upload image bytes (works on web AND mobile)
+      // Upload image bytes
       final storageRef = FirebaseStorage.instance
           .ref()
           .child('chat_images')
