@@ -15,6 +15,7 @@ import '../screens/order_detail_screen.dart';
 import '../models/order_model.dart';
 import '../models/chat_model.dart';
 import '../screens/about_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SellerHomeScreen extends StatefulWidget {
   const SellerHomeScreen({super.key});
@@ -30,6 +31,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
   bool _isLoading = false;
   String _selectedFilter = 'All';
   int _selectedIndex = 0;
+  late PageController _pageController;
 
   Stream<List<ChatModel>>? _chatsStream;
   String? _currentUserId;
@@ -39,6 +41,8 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _ordersTabController = TabController(length: 3, vsync: this);
+    _pageController = PageController();
+
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging && _tabController.index == 0) {
         if (mounted) {
@@ -57,6 +61,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
   void dispose() {
     _tabController.dispose();
     _ordersTabController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -107,6 +112,229 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     return 'NPR ${formatter.format(amount)}';
   }
 
+  Widget _buildGradientAppBar(
+    BuildContext context,
+    AuthProvider authProvider,
+    ThemeProvider themeProvider,
+    bool isWebLayout,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF2E7D32),
+            Color(0xFF4CAF50),
+            Color(0xFFE91E63),
+            Color(0xFFF06292),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.3, 0.7, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(40),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  // Title + subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (bounds) => const LinearGradient(
+                            colors: [Colors.white, Colors.white70],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ).createShader(bounds),
+                          child: Text(
+                            'Seller Dashboard',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isWebLayout ? 22 : 20,
+                              letterSpacing: 0.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(30),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withAlpha(50),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.store_rounded,
+                                size: isWebLayout ? 14 : 12,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Welcome back, ${authProvider.userData?['name']?.split(' ')[0] ?? 'Seller'}',
+                                  style: TextStyle(
+                                    fontSize: isWebLayout ? 11 : 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Theme toggle
+                  _appBarIconButton(
+                    icon: isDark
+                        ? Icons.light_mode_rounded
+                        : Icons.dark_mode_rounded,
+                    onPressed: () => themeProvider.toggleTheme(),
+                  ),
+                  // Chat button with badge
+                  StreamBuilder<List<ChatModel>>(
+                    stream: _chatsStream,
+                    builder: (context, snapshot) {
+                      int unreadCount = 0;
+                      if (snapshot.hasData && _currentUserId != null) {
+                        unreadCount = _getTotalUnreadCount(
+                            snapshot.data!, _currentUserId!);
+                      }
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: _appBarIconButton(
+                              icon: Icons.chat_outlined,
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ChatsListScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 2,
+                              top: 2,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(
+                                    minWidth: 16, minHeight: 16),
+                                child: Text(
+                                  unreadCount > 9 ? '9+' : '$unreadCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                  // Profile button
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _appBarIconButton(
+                      icon: Icons.person_outline,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const ProfileScreen()),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              // Web-only tab bar
+              if (isWebLayout)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.white,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white70,
+                    tabs: const [
+                      Tab(text: 'Dashboard', icon: Icon(Icons.dashboard)),
+                      Tab(text: 'Products', icon: Icon(Icons.inventory)),
+                      Tab(text: 'Orders', icon: Icon(Icons.shopping_bag)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _appBarIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(30),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white, size: 22),
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(10),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -115,6 +343,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     final themeProvider = Provider.of<ThemeProvider>(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final bool isWebLayout = screenWidth > 800;
+    final bool isMobileLayout = screenWidth < 600;
+    final bool isTabletLayout = screenWidth >= 600 && screenWidth < 900;
+    final bool isDark = themeProvider.isDarkMode;
 
     if (!authProvider.isSellerApproved) {
       return _buildApprovalPendingScreen(authProvider);
@@ -140,165 +371,84 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
         .length;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Seller Dashboard',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'Welcome back, ${authProvider.userData?['name'] ?? 'Seller'}',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        actions: [
-          Tooltip(
-            message: themeProvider.isDarkMode
-                ? 'Switch to Light Mode'
-                : 'Switch to Dark Mode',
-            child: IconButton(
-              icon: Icon(themeProvider.isDarkMode
-                  ? Icons.light_mode
-                  : Icons.dark_mode),
-              onPressed: () => themeProvider.toggleTheme(),
-            ),
+      resizeToAvoidBottomInset: true,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[50],
+      body: Column(
+        children: [
+          _buildGradientAppBar(
+            context,
+            authProvider,
+            themeProvider,
+            isWebLayout,
+            isDark,
           ),
-          StreamBuilder<List<ChatModel>>(
-            stream: _chatsStream,
-            builder: (context, snapshot) {
-              int unreadCount = 0;
-              if (snapshot.hasData && _currentUserId != null) {
-                unreadCount =
-                    _getTotalUnreadCount(snapshot.data!, _currentUserId!);
-              }
-              return Stack(
-                children: [
-                  Tooltip(
-                    message: 'Messages',
-                    child: IconButton(
-                      icon: const Icon(Icons.chat_outlined),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const ChatsListScreen()),
-                        );
-                      },
-                    ),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints:
-                            const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text(
-                          unreadCount > 9 ? '9+' : '$unreadCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : isWebLayout
+                    ? TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildDashboardTab(
+                            productProvider.userProducts,
+                            soldProducts,
+                            totalEarnings,
+                            pendingOrdersCount,
+                            activeOrdersCount,
+                            completedOrdersCount,
+                            isWebLayout,
+                            isMobileLayout,
+                            isTabletLayout,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
+                          _buildProductsTab(
+                              productProvider.userProducts, authProvider),
+                          _buildOrdersTab(orderProvider.sellerOrders),
+                        ],
+                      )
+                    : PageView(
+                        controller: _pageController,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _selectedIndex = index;
+                          });
+                        },
+                        children: [
+                          _buildDashboardTab(
+                            productProvider.userProducts,
+                            soldProducts,
+                            totalEarnings,
+                            pendingOrdersCount,
+                            activeOrdersCount,
+                            completedOrdersCount,
+                            isWebLayout,
+                            isMobileLayout,
+                            isTabletLayout,
+                          ),
+                          _buildProductsTab(
+                              productProvider.userProducts, authProvider),
+                          _buildOrdersTab(orderProvider.sellerOrders),
+                        ],
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-          Tooltip(
-            message: 'Profile',
-            child: IconButton(
-              icon: const Icon(Icons.person_outline),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const ProfileScreen()),
-                );
-              },
-            ),
           ),
         ],
-        //  TabBar for web layout
-        bottom: isWebLayout
-            ? TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.white,
-                tabs: const [
-                  Tab(text: 'Dashboard', icon: Icon(Icons.dashboard)),
-                  Tab(text: 'Products', icon: Icon(Icons.inventory)),
-                  Tab(text: 'Orders', icon: Icon(Icons.shopping_bag)),
-                ],
-              )
-            : null,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : isWebLayout
-              ? TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildDashboardTab(
-                      productProvider.userProducts,
-                      soldProducts,
-                      totalEarnings,
-                      pendingOrdersCount,
-                      activeOrdersCount,
-                      completedOrdersCount,
-                      isWebLayout,
-                    ),
-                    _buildProductsTab(
-                        productProvider.userProducts, authProvider),
-                    _buildOrdersTab(orderProvider.sellerOrders),
-                  ],
-                )
-              : IndexedStack(
-                  index: _selectedIndex,
-                  children: [
-                    _buildDashboardTab(
-                      productProvider.userProducts,
-                      soldProducts,
-                      totalEarnings,
-                      pendingOrdersCount,
-                      activeOrdersCount,
-                      completedOrdersCount,
-                      isWebLayout,
-                    ),
-                    _buildProductsTab(
-                        productProvider.userProducts, authProvider),
-                    _buildOrdersTab(orderProvider.sellerOrders),
-                  ],
-                ),
-      //  bottom navigation bar for mobile
       bottomNavigationBar: !isWebLayout
           ? BottomNavigationBar(
               currentIndex: _selectedIndex,
               onTap: (index) {
                 setState(() {
                   _selectedIndex = index;
+                  _pageController.jumpToPage(index);
                   if (index == 1) {
                     _selectedFilter = 'All';
                   }
                 });
               },
               type: BottomNavigationBarType.fixed,
-              selectedItemColor: Colors.orange,
-              unselectedItemColor: Colors.grey,
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              selectedItemColor: const Color(0xFFE91E63),
+              unselectedItemColor: isDark ? Colors.grey[500] : Colors.grey,
+              elevation: 8,
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.dashboard),
@@ -325,107 +475,14 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
             _loadSellerData();
           }
         },
-        backgroundColor: Colors.orange,
+        backgroundColor: const Color(0xFFE91E63),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Product', style: TextStyle(color: Colors.white)),
       ),
     );
   }
 
-  Widget _buildCompactFooter(bool isDark, BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(30),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AboutScreen()),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(20),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.menu_book_rounded,
-                      color: Color(0xFF2E7D32), size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Our Mission - About Us',
-                    style: TextStyle(
-                        color: Color(0xFF2E7D32),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(width: 80, height: 1, color: Colors.white.withAlpha(80)),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('🌱',
-                  style: TextStyle(
-                      fontSize: 14, color: Colors.white.withAlpha(230))),
-              const SizedBox(width: 8),
-              Text(
-                'One purchase at a time',
-                style: TextStyle(
-                    color: Colors.white.withAlpha(230),
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(width: 80, height: 1, color: Colors.white.withAlpha(80)),
-          const SizedBox(height: 12),
-          Text(
-            '© ${DateTime.now().year} KindCart',
-            style: TextStyle(
-                color: Colors.white.withAlpha(180),
-                fontSize: 11,
-                fontWeight: FontWeight.w400),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
+  // Dashboard Tab
   Widget _buildDashboardTab(
     List allProducts,
     List soldProducts,
@@ -434,17 +491,18 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     int activeOrdersCount,
     int completedOrdersCount,
     bool isWebLayout,
+    bool isMobileLayout,
+    bool isTabletLayout,
   ) {
     final activeProducts = allProducts.where((p) => p.isAvailable).toList();
     final int crossAxisCount = isWebLayout ? 4 : 2;
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
 
     return RefreshIndicator(
       onRefresh: _loadSellerData,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.only(
-          bottom: isWebLayout ? 0 : kBottomNavigationBarHeight + 16,
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -458,7 +516,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Colors.orange, Colors.deepOrange],
+                        colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -488,9 +546,11 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Overview',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Overview',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87)),
                   const SizedBox(height: 12),
                   GridView.count(
                     shrinkWrap: true,
@@ -504,7 +564,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         icon: Icons.inventory,
                         value: '${activeProducts.length}',
                         label: 'Active Listings',
-                        color: Colors.green,
+                        color: const Color(0xFF4CAF50),
                         onTap: () {
                           if (isWebLayout) {
                             _tabController.animateTo(1);
@@ -514,6 +574,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                           } else {
                             setState(() {
                               _selectedIndex = 1;
+                              _pageController.jumpToPage(1);
                               _selectedFilter = 'Available';
                             });
                           }
@@ -533,6 +594,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                           } else {
                             setState(() {
                               _selectedIndex = 1;
+                              _pageController.jumpToPage(1);
                               _selectedFilter = 'Sold';
                             });
                           }
@@ -542,7 +604,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         icon: Icons.pending,
                         value: '$pendingOrdersCount',
                         label: 'Pending Orders',
-                        color: Colors.orange,
+                        color: const Color(0xFFE91E63),
                         onTap: () {
                           if (isWebLayout) {
                             _tabController.animateTo(2);
@@ -554,6 +616,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                           } else {
                             setState(() {
                               _selectedIndex = 2;
+                              _pageController.jumpToPage(2);
                             });
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (_ordersTabController.index != 0) {
@@ -567,7 +630,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         icon: Icons.check_circle,
                         value: '$completedOrdersCount',
                         label: 'Completed Orders',
-                        color: Colors.green,
+                        color: const Color(0xFF2E7D32),
                         onTap: () {
                           if (isWebLayout) {
                             _tabController.animateTo(2);
@@ -579,6 +642,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                           } else {
                             setState(() {
                               _selectedIndex = 2;
+                              _pageController.jumpToPage(2);
                             });
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               if (_ordersTabController.index != 2) {
@@ -591,9 +655,11 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text('Quick Actions',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Quick Actions',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -601,7 +667,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         child: _buildActionButton(
                           icon: Icons.add_photo_alternate,
                           label: 'Add Product',
-                          color: Colors.green,
+                          color: const Color(0xFF4CAF50),
                           onTap: () async {
                             final result = await Navigator.push(
                               context,
@@ -618,12 +684,15 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         child: _buildActionButton(
                           icon: Icons.shopping_bag,
                           label: 'View Orders',
-                          color: Colors.orange,
+                          color: const Color(0xFFE91E63),
                           onTap: () {
                             if (isWebLayout) {
                               _tabController.animateTo(2);
                             } else {
-                              setState(() => _selectedIndex = 2);
+                              setState(() {
+                                _selectedIndex = 2;
+                                _pageController.jumpToPage(2);
+                              });
                             }
                           },
                         ),
@@ -632,11 +701,14 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                   ),
                   const SizedBox(height: 24),
                   if (soldProducts.isNotEmpty) ...[
-                    const Text('Recently Sold',
+                    Text('Recently Sold',
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87)),
                     const SizedBox(height: 12),
                     Card(
+                      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                       child: ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -666,7 +738,12 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                                   : null,
                             ),
                             title: Text(product.title,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87)),
                             subtitle: Text(_formatCurrency(product.price)),
                             trailing: const Icon(Icons.check_circle,
                                 color: Colors.green),
@@ -678,14 +755,533 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                 ],
               ),
             ),
+            // Footer
             if (isWebLayout)
-              Container(
-                margin: const EdgeInsets.only(top: 24),
-                child: _buildCompactFooter(
-                    Theme.of(context).brightness == Brightness.dark, context),
-              ),
+              _buildCompactFooter(
+                  context, isMobileLayout, isTabletLayout, isDark),
+            if (!isWebLayout)
+              const SizedBox(height: kBottomNavigationBarHeight + 10),
           ],
         ),
+      ),
+    );
+  }
+
+  //  FOOTER SECTION
+  Widget _buildCompactFooter(BuildContext context, bool isMobileLayout,
+      bool isTabletLayout, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobileLayout ? 20 : 40,
+        vertical: 24,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: const [
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF388E3C),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Main Footer Content
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (isMobileLayout) {
+                return _buildFooterMobileLayout(context);
+              } else if (isTabletLayout) {
+                return _buildFooterTabletLayout(context);
+              } else {
+                return _buildFooterDesktopLayout(context);
+              }
+            },
+          ),
+          const SizedBox(height: 20),
+          // Divider Line
+          Container(
+            height: 1,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withAlpha(0),
+                  Colors.white.withAlpha(100),
+                  Colors.white.withAlpha(0),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Bottom Bar
+          _buildFooterBottomBar(context, isMobileLayout),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterDesktopLayout(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: _buildFooterLogoSection(context),
+        ),
+        Expanded(
+          flex: 1,
+          child: Center(
+            child: _buildFooterContactSection(context),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 40),
+            child: _buildFooterSocialSection(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterTabletLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildFooterLogoSection(context)),
+            const SizedBox(width: 40),
+            Expanded(child: _buildFooterContactSection(context)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(child: _buildFooterSocialSection(context)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterMobileLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterLogoSection(context),
+        const SizedBox(height: 24),
+        _buildFooterContactSection(context),
+        const SizedBox(height: 24),
+        _buildFooterSocialSection(context),
+      ],
+    );
+  }
+
+  Widget _buildFooterLogoSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 45,
+              height: 45,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Colors.white, Colors.white70],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withAlpha(80),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/Logo.png',
+                  width: 45,
+                  height: 45,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.green.withAlpha(30),
+                      child: const Icon(
+                        Icons.eco,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'KindCart',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 280),
+          child: const Text(
+            'Sustainable second-hand marketplace connecting buyers, sellers, and donors for a greener future.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(25),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withAlpha(40)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.verified_rounded, color: Colors.white, size: 12),
+              SizedBox(width: 4),
+              Text(
+                'Eco-Friendly',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterContactSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text(
+          'CONTACT US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildFooterContactItem(
+          icon: Icons.phone_rounded,
+          text: '+977 9847098514',
+          onTap: () => _makePhoneCall('+9779847098514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.phone_rounded,
+          text: '+977 9857059514',
+          onTap: () => _makePhoneCall('+9779857059514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.email_rounded,
+          text: 'support@kindcart.com',
+          onTap: () => _sendEmail('support@kindcart.com'),
+          isEmail: true,
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          icon: Icons.access_time_rounded,
+          text: 'Mon-Fri: 9AM - 6PM',
+          onTap: null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterContactItem({
+    required IconData icon,
+    required String text,
+    VoidCallback? onTap,
+    bool isEmail = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor:
+            onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white70, size: 16),
+                const SizedBox(width: 10),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: onTap != null ? Colors.white : Colors.white60,
+                    fontSize: 12,
+                    decoration: onTap != null ? TextDecoration.underline : null,
+                    decorationColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterSocialSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CONNECT WITH US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildFooterSocialIcon(
+              iconData: Icons.camera_alt_rounded,
+              label: 'Instagram',
+              url: 'https://www.instagram.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFEDA77),
+                  Color(0xFFF58529),
+                  Color(0xFFDD2A7B),
+                  Color(0xFF8134AF),
+                  Color(0xFF515BD4),
+                ],
+                stops: [0.0, 0.2, 0.5, 0.8, 1.0],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.facebook_rounded,
+              label: 'Facebook',
+              url: 'https://www.facebook.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1877F2), Color(0xFF0C63D4)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.chat_bubble_rounded,
+              label: 'Twitter',
+              url: 'https://www.twitter.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1DA1F2), Color(0xFF0D8BD9)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.play_circle_filled_rounded,
+              label: 'YouTube',
+              url: 'https://www.youtube.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFF0000), Color(0xFFCC0000)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              iconData: Icons.work_rounded,
+              label: 'LinkedIn',
+              url: 'https://www.linkedin.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0A66C2), Color(0xFF004182)],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterSocialIcon({
+    required IconData iconData,
+    required String label,
+    required String url,
+    required Gradient gradient,
+  }) {
+    return Tooltip(
+      message: label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => _openSocialUrl(url),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(40),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              iconData,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterBottomBar(BuildContext context, bool isMobile) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterBottomLink('📍 About Us', () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AboutScreen()),
+          );
+        }),
+        const SizedBox(height: 12),
+        Text(
+          '© ${DateTime.now().year} KindCart. All rights reserved.',
+          style: TextStyle(
+            color: Colors.white.withAlpha(180),
+            fontSize: 11,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterBottomLink(String text, VoidCallback onTap) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper Methods for Footer Actions
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        _showErrorDialog(context, 'Could not make phone call');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Phone call not supported on this device');
+    }
+  }
+
+  Future<void> _sendEmail(String emailAddress) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: emailAddress,
+    );
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        _showErrorDialog(context, 'Could not open email app');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Email not supported on this device');
+    }
+  }
+
+  Future<void> _openSocialUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        _showErrorDialog(context, 'Could not open link');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Cannot open this link');
+    }
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -697,12 +1293,15 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     required Color color,
     required VoidCallback onTap,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
+          color: isDark ? color.withAlpha(30) : color.withAlpha(20),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withAlpha(50)),
         ),
@@ -715,7 +1314,39 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                 style: TextStyle(
                     fontSize: 20, fontWeight: FontWeight.bold, color: color)),
             Text(label,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600])),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? color.withAlpha(30) : color.withAlpha(20),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withAlpha(50)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w500)),
           ],
         ),
       ),
@@ -723,6 +1354,11 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
   }
 
   Widget _buildProductsTab(List products, AuthProvider auth) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+
     if (products.isEmpty) {
       return Center(
         child: Column(
@@ -730,11 +1366,15 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
           children: [
             Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            const Text('No products yet',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('No products yet',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 8),
             Text('Start adding your products for sale',
-                style: TextStyle(color: Colors.grey[600])),
+                style: TextStyle(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600])),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () async {
@@ -748,7 +1388,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
               icon: const Icon(Icons.add),
               label: const Text('Add Product'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: const Color(0xFFE91E63),
                 foregroundColor: Colors.white,
               ),
             ),
@@ -770,21 +1410,23 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
               _selectedFilter == 'Sold'
                   ? 'No sold items yet'
                   : 'No active listings',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87),
             ),
             const SizedBox(height: 8),
             Text(
               _selectedFilter == 'Sold'
                   ? 'Items you sell will appear here'
                   : 'Your active products will appear here',
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600]),
             ),
           ],
         ),
       );
     }
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isWebLayout = screenWidth > 800;
 
     return Column(
       children: [
@@ -800,7 +1442,13 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8)),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   ),
+                  dropdownColor:
+                      isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                  style:
+                      TextStyle(color: isDark ? Colors.white : Colors.black87),
                   items: const [
                     DropdownMenuItem(value: 'All', child: Text('All Products')),
                     DropdownMenuItem(
@@ -838,6 +1486,11 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
   }
 
   Widget _buildOrdersTab(List<OrderModel> orders) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+
     if (orders.isEmpty) {
       return Center(
         child: Column(
@@ -846,13 +1499,17 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
             Icon(Icons.receipt_long_outlined,
                 size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
-            const Text('No orders yet',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('No orders yet',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87)),
             const SizedBox(height: 8),
             Text(
               'When customers place orders, they\'ll appear here',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600]),
             ),
           ],
         ),
@@ -874,7 +1531,13 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     return Column(
       children: [
         Container(
-          color: Colors.orange,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE91E63), Color(0xFFF06292)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
           child: TabBar(
             controller: _ordersTabController,
             indicatorColor: Colors.white,
@@ -905,6 +1568,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
       {bool isPending = false,
       bool isProcessing = false,
       bool isCompleted = false}) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     if (orders.isEmpty) {
       return Center(
         child: Column(
@@ -914,7 +1580,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                 size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text('No orders in this category',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600])),
           ],
         ),
       );
@@ -936,10 +1604,13 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
   Widget _buildOrderCard(OrderModel order) {
     final firstItem = order.items.isNotEmpty ? order.items.first : null;
     final isContactOrder = order.paymentMethod == 'Contact Seller';
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
@@ -987,7 +1658,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                   Text('#${order.id.substring(0, 8)}',
                       style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
                           fontWeight: FontWeight.w500)),
                 ],
               ),
@@ -996,13 +1667,14 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: Colors.green.withAlpha(20),
+                    backgroundColor: const Color(0xFF4CAF50).withAlpha(20),
                     child: Text(
                       order.buyerName.isNotEmpty
                           ? order.buyerName[0].toUpperCase()
                           : 'B',
                       style: const TextStyle(
-                          color: Colors.green, fontWeight: FontWeight.bold),
+                          color: Color(0xFF2E7D32),
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1011,16 +1683,24 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(order.buyerName,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w600, fontSize: 15)),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: isDark ? Colors.white : Colors.black87)),
                         const SizedBox(height: 4),
                         Text(
                             '${order.items.length} item(s) • ${_formatCurrency(order.total)}',
                             style: TextStyle(
-                                fontSize: 13, color: Colors.grey[600])),
+                                fontSize: 13,
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600])),
                         Text(order.paymentMethod,
                             style: TextStyle(
-                                fontSize: 11, color: Colors.grey[500])),
+                                fontSize: 11,
+                                color: isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[500])),
                       ],
                     ),
                   ),
@@ -1031,7 +1711,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.grey[50],
+                      color: isDark ? Colors.grey[900] : Colors.grey[50],
                       borderRadius: BorderRadius.circular(8)),
                   child: Row(
                     children: [
@@ -1058,13 +1738,19 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(firstItem.productName,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w500, fontSize: 13),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                    color:
+                                        isDark ? Colors.white : Colors.black87),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis),
                             Text('Qty: ${firstItem.quantity}',
                                 style: TextStyle(
-                                    fontSize: 11, color: Colors.grey[600])),
+                                    fontSize: 11,
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600])),
                           ],
                         ),
                       ),
@@ -1079,10 +1765,14 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+                  Icon(Icons.calendar_today,
+                      size: 12,
+                      color: isDark ? Colors.grey[500] : Colors.grey[500]),
                   const SizedBox(width: 4),
                   Text(_formatDate(order.orderDate),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.grey[400] : Colors.grey[500])),
                   const Spacer(),
                   if (order.orderStatus == 'pending' ||
                       order.orderStatus == 'pending_contact')
@@ -1090,32 +1780,32 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                       onPressed: () => _confirmOrder(order),
                       icon: const Icon(Icons.check_circle, size: 16),
                       label: const Text('Confirm'),
-                      style:
-                          TextButton.styleFrom(foregroundColor: Colors.green),
+                      style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF2E7D32)),
                     ),
                   if (order.orderStatus == 'confirmed' && !isContactOrder)
                     TextButton.icon(
                       onPressed: () => _markAsShipped(order),
                       icon: const Icon(Icons.local_shipping, size: 16),
                       label: const Text('Ship'),
-                      style:
-                          TextButton.styleFrom(foregroundColor: Colors.purple),
+                      style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFF06292)),
                     ),
                   if (order.orderStatus == 'shipped' && !isContactOrder)
                     TextButton.icon(
                       onPressed: () => _markAsDelivered(order),
                       icon: const Icon(Icons.check_circle, size: 16),
                       label: const Text('Deliver'),
-                      style:
-                          TextButton.styleFrom(foregroundColor: Colors.green),
+                      style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF2E7D32)),
                     ),
                   if (order.orderStatus == 'confirmed' && isContactOrder)
                     TextButton.icon(
                       onPressed: () => _markAsDelivered(order),
                       icon: const Icon(Icons.check_circle, size: 16),
                       label: const Text('Complete Order'),
-                      style:
-                          TextButton.styleFrom(foregroundColor: Colors.green),
+                      style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF2E7D32)),
                     ),
                 ],
               ),
@@ -1126,93 +1816,10 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     );
   }
 
-  Widget _buildApprovalPendingScreen(AuthProvider auth) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                    color: Colors.orange.withAlpha(20), shape: BoxShape.circle),
-                child: const Icon(Icons.hourglass_empty,
-                    size: 80, color: Colors.orange),
-              ),
-              const SizedBox(height: 32),
-              const Text('Approval Pending',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Text(
-                auth.sellerApprovalRequested
-                    ? 'Your seller account is under review. You\'ll be able to start selling once approved by an admin.'
-                    : 'Please request seller approval to start selling on KindCart.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 32),
-              if (!auth.sellerApprovalRequested)
-                ElevatedButton(
-                  onPressed: () async {
-                    await auth.requestSellerApproval();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Approval requested successfully!'),
-                            backgroundColor: Colors.green),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 16),
-                  ),
-                  child: const Text('Request Approval'),
-                ),
-              const SizedBox(height: 16),
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Go Back')),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withAlpha(50)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildProductCard(product) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -1223,6 +1830,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
       },
       child: Card(
         elevation: 2,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1234,7 +1842,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.grey[200],
+                      color: isDark ? Colors.grey[800] : Colors.grey[200],
                       borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(12)),
                       image: product.imageUrls.isNotEmpty
@@ -1256,7 +1864,9 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: product.isAvailable ? Colors.green : Colors.red,
+                        color: product.isAvailable
+                            ? const Color(0xFF4CAF50)
+                            : Colors.red,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(product.isAvailable ? 'Available' : 'Sold',
@@ -1275,23 +1885,20 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(product.title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.black87),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 4),
                     Text(_formatCurrency(product.price),
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.orange)),
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFE91E63))),
                     const Spacer(),
                     Row(
                       children: [
-                        const Icon(Icons.visibility,
-                            size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text('${product.viewCount}',
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.grey)),
                         const Spacer(),
                         InkWell(
                           onTap: () {
@@ -1303,7 +1910,7 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
                             );
                           },
                           child: const Icon(Icons.edit,
-                              size: 16, color: Colors.orange),
+                              size: 16, color: Color(0xFFE91E63)),
                         ),
                       ],
                     ),
@@ -1313,6 +1920,133 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildApprovalPendingScreen(AuthProvider auth) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[50],
+      body: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2E7D32),
+                  Color(0xFF4CAF50),
+                  Color(0xFFE91E63),
+                  Color(0xFFF06292)
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.3, 0.7, 1.0],
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [Colors.white, Colors.white70],
+                        ).createShader(bounds),
+                        child: const Text(
+                          'Approval Pending',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                              color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    _appBarIconButton(
+                      icon: isDark
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_rounded,
+                      onPressed: () => themeProvider.toggleTheme(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFE91E63).withAlpha(20),
+                          shape: BoxShape.circle),
+                      child: const Icon(Icons.hourglass_empty,
+                          size: 80, color: Color(0xFFE91E63)),
+                    ),
+                    const SizedBox(height: 32),
+                    Text('Approval Pending',
+                        style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87)),
+                    const SizedBox(height: 16),
+                    Text(
+                      auth.sellerApprovalRequested
+                          ? 'Your seller account is under review. You\'ll be able to start selling once approved by an admin.'
+                          : 'Please request seller approval to start selling on KindCart.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 32),
+                    if (!auth.sellerApprovalRequested)
+                      ElevatedButton(
+                        onPressed: () async {
+                          await auth.requestSellerApproval();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('Approval requested successfully!'),
+                                  backgroundColor: Colors.green),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFE91E63),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
+                        ),
+                        child: const Text('Request Approval'),
+                      ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const ProfileScreen()),
+                          );
+                        },
+                        child: const Text('Go Back to Profile')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1399,7 +2133,8 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.green),
+              style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2E7D32)),
               child: const Text('Yes, Complete Order')),
         ],
       ),
@@ -1447,17 +2182,17 @@ class _SellerHomeScreenState extends State<SellerHomeScreen>
     switch (status) {
       case 'pending':
       case 'pending_contact':
-        return Colors.orange;
+        return const Color(0xFFE91E63);
       case 'confirmed':
         return Colors.blue;
       case 'processing':
         return Colors.lightBlue;
       case 'shipped':
-        return Colors.purple;
+        return const Color(0xFFF06292);
       case 'delivered':
-        return Colors.green;
+        return const Color(0xFF4CAF50);
       case 'completed':
-        return Colors.teal;
+        return const Color(0xFF2E7D32);
       case 'cancelled':
         return Colors.red;
       default:
