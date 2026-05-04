@@ -1,13 +1,7 @@
-// lib/models/donation_model.dart
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum DonationStatus {
-  pending,    // Initial state after donor submits
-  approved,   // Admin verified, waiting for completion
-  completed,  // Donation actually done, will show in donate_screen
-  rejected    // Admin rejected with reason
-}
+enum DonationStatus { pending, approved, completed, rejected }
 
 class DonationModel {
   final String id;
@@ -37,20 +31,18 @@ class DonationModel {
   final bool canDeliver;
 
   // Images
-  final List<String> donorImageUrls;      // Images uploaded by donor
-  final String? proofImageUrl;             // Proof image from admin (already exists)
+  final List<String> donorImageUrls; // Images uploaded by donor
+  final String? proofImageUrl;
 
-  // Admin fields (only for completed)
-  final String? recipientInfo;      // Where it went
-  final DateTime? completedAt;      // When admin marked completed
+  // Admin fields (for completed)
+  final String? recipientInfo; // Where it went
+  final DateTime? completedAt; // When admin marked completed
 
   // Status
   final DonationStatus status;
   final String? rejectionReason;
   final DateTime createdAt;
-
-  // Add this missing field
-  final bool isAvailable;  // Controls visibility in public screens
+  final bool isAvailable;
 
   // Constructor
   DonationModel({
@@ -80,7 +72,7 @@ class DonationModel {
     required this.status,
     this.rejectionReason,
     required this.createdAt,
-    required this.isAvailable,  // Add this
+    required this.isAvailable,
   });
 
   // Convert to Firestore
@@ -107,11 +99,12 @@ class DonationModel {
       'donorImageUrls': donorImageUrls,
       'proofImageUrl': proofImageUrl,
       'recipientInfo': recipientInfo,
-      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
+      'completedAt':
+          completedAt != null ? Timestamp.fromDate(completedAt!) : null,
       'status': status.index,
       'rejectionReason': rejectionReason,
       'createdAt': Timestamp.fromDate(createdAt),
-      'isAvailable': isAvailable,  // Add this
+      'isAvailable': isAvailable,
     };
   }
 
@@ -146,7 +139,7 @@ class DonationModel {
       status: DonationStatus.values[map['status'] ?? 0],
       rejectionReason: map['rejectionReason'],
       createdAt: (map['createdAt'] as Timestamp).toDate(),
-      isAvailable: map['isAvailable'] ?? true,  // Add this with default
+      isAvailable: map['isAvailable'] ?? true,
     );
   }
 
@@ -192,7 +185,7 @@ class DonationModel {
     }
   }
 
-  // Get main image to display (proof first, then donor images)
+  // main image to display
   String? get mainImageUrl {
     if (proofImageUrl != null) return proofImageUrl;
     if (donorImageUrls.isNotEmpty) return donorImageUrls.first;
