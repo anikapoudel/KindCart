@@ -3,60 +3,780 @@ import 'package:provider/provider.dart';
 import '../providers/donation_provider.dart';
 import '../models/donation_model.dart';
 import 'adddonation_screen.dart';
+import 'about_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DonateScreen extends StatelessWidget {
   const DonateScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+    final bool isMobileLayout = screenWidth < 600;
+    final bool isTabletLayout = screenWidth >= 600 && screenWidth < 900;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Donations That Made Impact'),
-        backgroundColor: Colors.purple,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              Provider.of<DonationProvider>(context, listen: false)
-                  .loadCompletedDonations();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refreshing impact stories...'),
-                  duration: Duration(seconds: 1),
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2E7D32),
+                  Color(0xFF4CAF50),
+                  Color(0xFFE91E63),
+                  Color(0xFFF06292),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.3, 0.7, 1.0],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(40),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                  spreadRadius: 0,
                 ),
-              );
-            },
-            tooltip: 'Refresh',
+              ],
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    // Back button
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Colors.white, Colors.white70],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withAlpha(80),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          width: isWebLayout ? 46 : 40,
+                          height: isWebLayout ? 46 : 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(15),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Color(0xFF2E7D32),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Brand and Welcome Section
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Colors.white, Colors.white70],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ).createShader(bounds),
+                            child: Text(
+                              'Donations That Made Impact',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isWebLayout ? 20 : 16,
+                                letterSpacing: 0.5,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withAlpha(60),
+                                  Colors.white.withAlpha(60),
+                                ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withAlpha(100),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.volunteer_activism_rounded,
+                                  size: isWebLayout ? 14 : 12,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    'Making a difference together',
+                                    style: TextStyle(
+                                      fontSize: isWebLayout ? 11 : 10,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '✨',
+                                  style: TextStyle(
+                                      fontSize: isWebLayout ? 12 : 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Refresh Button
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(30),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(20),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                        onPressed: () {
+                          Provider.of<DonationProvider>(context, listen: false)
+                              .loadCompletedDonations();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Refreshing impact stories...'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        padding: const EdgeInsets.all(8),
+                        constraints:
+                            const BoxConstraints(minWidth: 44, minHeight: 44),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Main Content
+          Expanded(
+            child: Consumer<DonationProvider>(
+              builder: (context, provider, child) {
+                if (provider.completedDonations.isEmpty) {
+                  return _buildEmptyState(context);
+                }
+
+                return SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Impact Counter
+                      _buildImpactCounter(provider.completedDonations.length),
+
+                      // List of completed donations
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: provider.completedDonations.length,
+                        itemBuilder: (ctx, index) {
+                          final donation = provider.completedDonations[index];
+                          return _buildDonationCard(context, donation);
+                        },
+                      ),
+
+                      //  Footer
+                      if (isWebLayout)
+                        _buildCompactFooter(
+                            context, isMobileLayout, isTabletLayout),
+
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
-      body: Consumer<DonationProvider>(
-        builder: (context, provider, child) {
-          if (provider.completedDonations.isEmpty) {
-            return _buildEmptyState(context);
-          }
+    );
+  }
 
-          return Column(
+  // FOOTER
+
+  Widget _buildCompactFooter(
+      BuildContext context, bool isMobileLayout, bool isTabletLayout) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobileLayout ? 20 : 40,
+        vertical: 24,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: const [
+            Color(0xFF1B5E20),
+            Color(0xFF2E7D32),
+            Color(0xFF388E3C),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(30),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (isMobileLayout) {
+                return _buildFooterMobileLayout(context);
+              } else if (isTabletLayout) {
+                return _buildFooterTabletLayout(context);
+              } else {
+                return _buildFooterDesktopLayout(context);
+              }
+            },
+          ),
+          const SizedBox(height: 20),
+          Container(
+            height: 1,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withAlpha(0),
+                  Colors.white.withAlpha(100),
+                  Colors.white.withAlpha(0),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildFooterBottomBar(context, isMobileLayout),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterDesktopLayout(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 1,
+          child: _buildFooterLogoSection(context),
+        ),
+        Expanded(
+          flex: 1,
+          child: Center(
+            child: _buildFooterContactSection(context),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 40),
+            child: _buildFooterSocialSection(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterTabletLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildFooterLogoSection(context)),
+            const SizedBox(width: 40),
+            Expanded(child: _buildFooterContactSection(context)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(child: _buildFooterSocialSection(context)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterMobileLayout(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterLogoSection(context),
+        const SizedBox(height: 24),
+        _buildFooterContactSection(context),
+        const SizedBox(height: 24),
+        _buildFooterSocialSection(context),
+      ],
+    );
+  }
+
+  Widget _buildFooterLogoSection(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AboutScreen()),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              // Impact Counter
-              _buildImpactCounter(provider.completedDonations.length),
-
-              // List of completed donations
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: provider.completedDonations.length,
-                  itemBuilder: (ctx, index) {
-                    final donation = provider.completedDonations[index];
-                    return _buildDonationCard(context, donation);
-                  },
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Colors.white, Colors.white70],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withAlpha(80),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/Logo.png',
+                    width: 45,
+                    height: 45,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.green.withAlpha(30),
+                        child: const Icon(
+                          Icons.eco,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'KindCart',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: const Text(
+              'Sustainable second-hand marketplace connecting buyers, sellers, and donors for a greener future.',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(25),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withAlpha(40)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified_rounded, color: Colors.white, size: 12),
+                SizedBox(width: 4),
+                Text(
+                  'Eco-Friendly',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterContactSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text(
+          'CONTACT US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildFooterContactItem(
+          context: context,
+          icon: Icons.phone_rounded,
+          text: '+977 9847098514',
+          onTap: () => _makePhoneCall(context, '+9779847098514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          context: context,
+          icon: Icons.phone_rounded,
+          text: '+977 9857059514',
+          onTap: () => _makePhoneCall(context, '+9779857059514'),
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          context: context,
+          icon: Icons.email_rounded,
+          text: 'support@kindcart.com',
+          onTap: () => _sendEmail(context, 'support@kindcart.com'),
+          isEmail: true,
+        ),
+        const SizedBox(height: 8),
+        _buildFooterContactItem(
+          context: context,
+          icon: Icons.access_time_rounded,
+          text: 'Mon-Fri: 9AM - 6PM',
+          onTap: null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterContactItem({
+    required BuildContext context,
+    required IconData icon,
+    required String text,
+    VoidCallback? onTap,
+    bool isEmail = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor:
+            onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.white70, size: 16),
+                const SizedBox(width: 10),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: onTap != null ? Colors.white : Colors.white60,
+                    fontSize: 12,
+                    decoration: onTap != null ? TextDecoration.underline : null,
+                    decorationColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterSocialSection(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CONNECT WITH US',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildFooterSocialIcon(
+              context: context,
+              iconData: Icons.camera_alt_rounded,
+              label: 'Instagram',
+              url: 'https://www.instagram.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFEDA77),
+                  Color(0xFFF58529),
+                  Color(0xFFDD2A7B),
+                  Color(0xFF8134AF),
+                  Color(0xFF515BD4),
+                ],
+                stops: [0.0, 0.2, 0.5, 0.8, 1.0],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              context: context,
+              iconData: Icons.facebook_rounded,
+              label: 'Facebook',
+              url: 'https://www.facebook.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1877F2), Color(0xFF0C63D4)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              context: context,
+              iconData: Icons.chat_bubble_rounded,
+              label: 'Twitter',
+              url: 'https://www.twitter.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1DA1F2), Color(0xFF0D8BD9)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              context: context,
+              iconData: Icons.play_circle_filled_rounded,
+              label: 'YouTube',
+              url: 'https://www.youtube.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFF0000), Color(0xFFCC0000)],
+              ),
+            ),
+            const SizedBox(width: 16),
+            _buildFooterSocialIcon(
+              context: context,
+              iconData: Icons.work_rounded,
+              label: 'LinkedIn',
+              url: 'https://www.linkedin.com',
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0A66C2), Color(0xFF004182)],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterSocialIcon({
+    required BuildContext context,
+    required IconData iconData,
+    required String label,
+    required String url,
+    required Gradient gradient,
+  }) {
+    return Tooltip(
+      message: label,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => _openSocialUrl(context, url),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: gradient,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(40),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              iconData,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterBottomBar(BuildContext context, bool isMobile) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFooterBottomLink(context, '📍 About Us', () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AboutScreen()),
           );
-        },
+        }),
+        const SizedBox(height: 12),
+        Text(
+          '© ${DateTime.now().year} KindCart. All rights reserved.',
+          style: TextStyle(
+            color: Colors.white.withAlpha(180),
+            fontSize: 11,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterBottomLink(
+      BuildContext context, String text, VoidCallback onTap) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              decorationColor: Colors.white54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper Methods for Footer Actions
+  Future<void> _makePhoneCall(BuildContext context, String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(phoneUri)) {
+        await launchUrl(phoneUri);
+      } else {
+        _showErrorDialog(context, 'Could not make phone call');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Phone call not supported on this device');
+    }
+  }
+
+  Future<void> _sendEmail(BuildContext context, String emailAddress) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: emailAddress,
+    );
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        _showErrorDialog(context, 'Could not open email app');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Email not supported on this device');
+    }
+  }
+
+  Future<void> _openSocialUrl(BuildContext context, String url) async {
+    final Uri uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        _showErrorDialog(context, 'Could not open link');
+      }
+    } catch (e) {
+      _showErrorDialog(context, 'Cannot open this link');
+    }
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -67,15 +787,15 @@ class DonateScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple.shade400, Colors.purple.shade700],
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE91E63), Color(0xFFF06292)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withAlpha(51),
+            color: const Color(0xFFE91E63).withAlpha(51),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -107,62 +827,77 @@ class DonateScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.volunteer_activism,
-              size: 100,
-              color: Colors.purple[200],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'No completed donations yet',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+    final bool isMobileLayout = screenWidth < 600;
+    final bool isTabletLayout = screenWidth >= 600 && screenWidth < 900;
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.volunteer_activism,
+                    size: 100,
+                    color: const Color(0xFFF06292).withAlpha(100),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'No completed donations yet',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      'Be the first to make an impact! Your donation could change someone\'s life.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const AddDonationScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.add_circle),
+                    label: const Text(
+                      'Start Donating',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE91E63),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Be the first to make an impact! Your donation could change someone\'s life.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 16,
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddDonationScreen()),
-                );
-              },
-              icon: const Icon(Icons.add_circle),
-              label: const Text(
-                'Start Donating',
-                style: TextStyle(fontSize: 16),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          if (isWebLayout)
+            _buildCompactFooter(context, isMobileLayout, isTabletLayout),
+        ],
       ),
     );
   }
@@ -243,7 +978,7 @@ class DonateScreen extends StatelessWidget {
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple.shade200),
+                border: Border.all(color: Colors.green.shade200),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -264,16 +999,13 @@ class DonateScreen extends StatelessWidget {
   }
 
   Widget _buildDonationCard(BuildContext context, DonationModel donation) {
-    // Determine which image to show as main image
     String? mainImageToShow;
     bool isAdminProof = false;
 
     if (donation.proofImageUrl != null && donation.proofImageUrl!.isNotEmpty) {
-      // Admin added a proof image - show that as main
       mainImageToShow = donation.proofImageUrl;
       isAdminProof = true;
     } else if (donation.donorImageUrls.isNotEmpty) {
-      // No admin proof, show donor's first image
       mainImageToShow = donation.donorImageUrls.first;
     }
 
@@ -305,7 +1037,7 @@ class DonateScreen extends StatelessWidget {
                         color: Colors.grey[300],
                         child: const Center(
                           child: CircularProgressIndicator(
-                            color: Colors.purple,
+                            color: Color(0xFFE91E63),
                           ),
                         ),
                       );
@@ -322,7 +1054,6 @@ class DonateScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Image type indicator (Admin Proof or Donor Photo)
                   Positioned(
                     top: 12,
                     left: 12,
@@ -333,8 +1064,8 @@ class DonateScreen extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isAdminProof
-                            ? Colors.green.withAlpha(204)
-                            : Colors.purple.withAlpha(204),
+                            ? const Color(0xFF2E7D32).withAlpha(204)
+                            : const Color(0xFFE91E63).withAlpha(204),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -358,7 +1089,6 @@ class DonateScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Gradient overlay
                   Positioned(
                     bottom: 0,
                     left: 0,
@@ -377,7 +1107,6 @@ class DonateScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Tap to view full screen hint
                   Positioned(
                     bottom: 12,
                     right: 12,
@@ -413,12 +1142,12 @@ class DonateScreen extends StatelessWidget {
             Container(
               height: 120,
               width: double.infinity,
-              color: Colors.purple[50],
+              color: const Color(0xFFF06292).withAlpha(50),
               child: Center(
                 child: Icon(
                   Icons.volunteer_activism,
                   size: 60,
-                  color: Colors.purple[200],
+                  color: const Color(0xFFF06292),
                 ),
               ),
             ),
@@ -429,7 +1158,6 @@ class DonateScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Category and Verified Badge
                 Row(
                   children: [
                     Container(
@@ -438,17 +1166,17 @@ class DonateScreen extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade50,
+                        color: const Color(0xFFF06292).withAlpha(30),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.purple.shade200,
+                          color: const Color(0xFFF06292).withAlpha(100),
                           width: 1,
                         ),
                       ),
                       child: Text(
                         donation.category,
-                        style: TextStyle(
-                          color: Colors.purple.shade700,
+                        style: const TextStyle(
+                          color: Color(0xFFE91E63),
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -461,10 +1189,10 @@ class DonateScreen extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: const Color(0xFF4CAF50).withAlpha(30),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.green.shade200,
+                          color: const Color(0xFF4CAF50).withAlpha(100),
                           width: 1,
                         ),
                       ),
@@ -474,13 +1202,13 @@ class DonateScreen extends StatelessWidget {
                           Icon(
                             Icons.verified,
                             size: 14,
-                            color: Colors.green.shade700,
+                            color: const Color(0xFF2E7D32),
                           ),
                           const SizedBox(width: 4),
-                          Text(
+                          const Text(
                             'COMPLETED',
                             style: TextStyle(
-                              color: Colors.green.shade700,
+                              color: Color(0xFF2E7D32),
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -490,10 +1218,7 @@ class DonateScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 12),
-
-                // Title
                 Text(
                   donation.title,
                   style: const TextStyle(
@@ -502,29 +1227,20 @@ class DonateScreen extends StatelessWidget {
                     height: 1.2,
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                // Impact Story (admin's remarks)
                 _buildInfoRow(
                   icon: Icons.favorite,
                   label: 'Impact Story:',
                   value: donation.recipientInfo ??
                       'Made a difference in someone\'s life',
                 ),
-
                 const SizedBox(height: 8),
-
-                // Location
                 _buildInfoRow(
                   icon: Icons.location_on,
                   label: 'Location:',
                   value: donation.location,
                 ),
-
                 const SizedBox(height: 12),
-
-                // Quantity
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -536,7 +1252,7 @@ class DonateScreen extends StatelessWidget {
                       Icon(
                         Icons.inventory,
                         size: 18,
-                        color: Colors.purple[400],
+                        color: const Color(0xFFE91E63),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -548,8 +1264,6 @@ class DonateScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // Donor attribution (if not anonymous)
                 if (!donation.isAnonymous && donation.donorName.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Row(
@@ -557,14 +1271,14 @@ class DonateScreen extends StatelessWidget {
                       Icon(
                         Icons.favorite,
                         size: 16,
-                        color: Colors.purple[300],
+                        color: const Color(0xFFE91E63).withAlpha(150),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           'With love from ${donation.donorName}',
                           style: TextStyle(
-                            color: Colors.purple[600],
+                            color: const Color(0xFFE91E63),
                             fontStyle: FontStyle.italic,
                             fontSize: 13,
                           ),
@@ -573,8 +1287,6 @@ class DonateScreen extends StatelessWidget {
                     ],
                   ),
                 ],
-
-                // Show additional donor images gallery if there are more
                 if (donation.donorImageUrls.length > 1) ...[
                   const SizedBox(height: 16),
                   const Text(
