@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:ui' as ui;
 import '../models/product_model.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
@@ -93,87 +94,139 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
+  // Helper method to check dark mode
+  bool _isDarkMode() {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<app_auth.AuthProvider>(context);
     final isOwner = authProvider.user?.uid == _currentItem.sellerId;
     final screenWidth = MediaQuery.of(context).size.width;
     final isLargeScreen = screenWidth > 900;
+    final isDark = _isDarkMode();
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              shape: BoxShape.circle,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
             ),
-            child:
-                const Icon(Icons.arrow_back, color: Colors.black87, size: 20),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : const Color(0xFF2E7D32).withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          _currentItem.title,
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          if (!isOwner)
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  shape: BoxShape.circle,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        _isInWishlist ? Icons.favorite : Icons.favorite_border,
-                        color: _isInWishlist ? Colors.red : Colors.black87,
-                        size: 20,
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      // Back button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(200),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.black87, size: 20),
+                          onPressed: () => Navigator.pop(context),
+                        ),
                       ),
-              ),
-              onPressed: _isLoading ? null : _toggleWishlist,
-            ),
-          if (isOwner)
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.edit, color: Colors.orange, size: 20),
-              ),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        EditProductScreen(product: _currentItem),
+                      const SizedBox(width: 12),
+                      // Title
+                      Expanded(
+                        child: Text(
+                          _currentItem.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Wishlist/Edit buttons
+                      if (!isOwner)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(200),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : Icon(
+                                    _isInWishlist
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: _isInWishlist
+                                        ? Colors.red
+                                        : Colors.black87,
+                                    size: 20,
+                                  ),
+                            onPressed: _isLoading ? null : _toggleWishlist,
+                          ),
+                        ),
+                      if (isOwner)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(200),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.edit,
+                                color: Colors.orange, size: 20),
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      EditProductScreen(product: _currentItem),
+                                ),
+                              );
+                              if (result == true && mounted) {
+                                await _refreshProductData();
+                              }
+                            },
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
-                );
-                if (result == true && mounted) {
-                  await _refreshProductData();
-                }
-              },
+                ),
+              ),
             ),
-          const SizedBox(width: 8),
-        ],
+          ),
+        ),
       ),
       body: isLargeScreen
           ? _buildWebLayout(isOwner)
@@ -1090,7 +1143,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
       return;
     }
 
-    // Don't allow reporting your own item
+    // Don't allow reporting own's item
     if (authProvider.user?.uid == _currentItem.sellerId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
