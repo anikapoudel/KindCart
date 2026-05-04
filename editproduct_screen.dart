@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:ui' as ui;
 import '../providers/product_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/product_model.dart';
@@ -26,11 +28,13 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late bool _isAvailable;
 
   bool _isSubmitting = false;
+  List<String> _availableCategories = [];
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
+    _loadCategories();
   }
 
   void _initializeControllers() {
@@ -49,7 +53,52 @@ class _EditProductScreenState extends State<EditProductScreen> {
     debugPrint(
         '📝 EditProductScreen initialized for product: ${widget.product.id}');
     debugPrint('   Title: ${widget.product.title}');
+    debugPrint('   Category: ${widget.product.category}');
+    debugPrint('   Condition: ${widget.product.condition}');
     debugPrint('   Seller ID: ${widget.product.sellerId}');
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('categories')
+          .orderBy('name')
+          .get();
+
+      if (mounted) {
+        if (snapshot.docs.isNotEmpty) {
+          setState(() {
+            _availableCategories =
+                snapshot.docs.map((doc) => doc['name'] as String).toList();
+          });
+          debugPrint(
+              '✅ Loaded ${_availableCategories.length} categories from Firestore');
+        } else {
+          // Fallback to default categories
+          setState(() {
+            _availableCategories =
+                List.from(ProductModel.defaultCategoryOptions);
+          });
+          debugPrint('⚠️ No categories in Firestore, using defaults');
+        }
+
+        // Ensure the current category exists in the list
+        if (!_availableCategories.contains(_selectedCategory) &&
+            _selectedCategory.isNotEmpty) {
+          debugPrint('⚠️ Category "$_selectedCategory" not in list, adding it');
+          setState(() {
+            _availableCategories.add(_selectedCategory);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading categories: $e');
+      if (mounted) {
+        setState(() {
+          _availableCategories = List.from(ProductModel.defaultCategoryOptions);
+        });
+      }
+    }
   }
 
   @override
@@ -59,6 +108,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _priceController.dispose();
     _locationController.dispose();
     super.dispose();
+  }
+
+  // Helper method to check dark mode
+  bool _isDarkMode() {
+    return Theme.of(context).brightness == Brightness.dark;
   }
 
   Future<void> _updateProduct() async {
@@ -99,12 +153,10 @@ class _EditProductScreenState extends State<EditProductScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-
-        // Wait a moment for the user to see the success message
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (mounted) {
-          Navigator.pop(context, true); // Return true to indicate success
+          Navigator.pop(context, true);
         }
       } else {
         throw Exception(productProvider.errorMessage ?? 'Update failed');
@@ -317,11 +369,76 @@ class _EditProductScreenState extends State<EditProductScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final isOwner = authProvider.user?.uid == widget.product.sellerId;
     final isAdmin = authProvider.userRole == 'Admin';
+    final isDark = _isDarkMode();
 
     if (!isOwner && !isAdmin) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Access Denied'),
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(88),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2E7D32),
+                  Color(0xFF4CAF50),
+                  Color(0xFFE91E63),
+                  Color(0xFFF06292),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.3, 0.7, 1.0],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withAlpha(40)
+                      : const Color(0xFF2E7D32).withAlpha(40),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(30),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Access Denied',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         body: Center(
           child: Column(
@@ -344,59 +461,210 @@ class _EditProductScreenState extends State<EditProductScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Product'),
-        actions: [
-          // Delete button with options
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') {
-                _showDeleteOptions();
-              } else if (value == 'mark_sold') {
-                _softDeleteProduct();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'mark_sold',
+    // Show loading indicator while categories are loading
+    if (_availableCategories.isEmpty) {
+      return Scaffold(
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(88),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF2E7D32),
+                  Color(0xFF4CAF50),
+                  Color(0xFFE91E63),
+                  Color(0xFFF06292),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.0, 0.3, 0.7, 1.0],
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 child: Row(
                   children: [
-                    Icon(Icons.sell, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text('Mark as Sold'),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(30),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded,
+                            color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Edit Product',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 48),
                   ],
                 ),
               ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete Options...'),
-                  ],
-                ),
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : const Color(0xFF2E7D32).withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
               ),
             ],
-            icon: const Icon(Icons.more_vert),
           ),
-
-          // Save button
-          TextButton(
-            onPressed: _isSubmitting ? null : _updateProduct,
-            child: _isSubmitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text(
-                    'SAVE',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Back button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Title
+                      const Expanded(
+                        child: Text(
+                          'Edit Product',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      // Delete options button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'delete') {
+                              _showDeleteOptions();
+                            } else if (value == 'mark_sold') {
+                              _softDeleteProduct();
+                            }
+                          },
+                          color: Colors.white,
+                          icon:
+                              const Icon(Icons.more_vert, color: Colors.white),
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'mark_sold',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.sell,
+                                      color: Colors.orange, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Mark as Sold'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete,
+                                      color: Colors.red, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Delete Options...'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Save button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: TextButton(
+                          onPressed: _isSubmitting ? null : _updateProduct,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                          ),
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'SAVE',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+              ),
+            ),
           ),
-        ],
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -423,27 +691,33 @@ class _EditProductScreenState extends State<EditProductScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Category
+            // Category Dropdown
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              value: _availableCategories.contains(_selectedCategory)
+                  ? _selectedCategory
+                  : (_availableCategories.isNotEmpty
+                      ? _availableCategories.first
+                      : null),
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.category),
               ),
-              items: ProductModel.categoryOptions.map((category) {
-                return DropdownMenuItem(
+              items: _availableCategories.map((category) {
+                return DropdownMenuItem<String>(
                   value: category,
                   child: Text(category),
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
-                  _selectedCategory = value!;
-                });
+                if (value != null) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });
+                }
               },
               validator: (value) {
-                if (value == null) {
+                if (value == null || value.isEmpty) {
                   return 'Please select a category';
                 }
                 return null;
@@ -451,16 +725,18 @@ class _EditProductScreenState extends State<EditProductScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Condition
+            // Condition Dropdown
             DropdownButtonFormField<String>(
-              value: _selectedCondition,
+              value: ProductModel.conditionOptions.contains(_selectedCondition)
+                  ? _selectedCondition
+                  : ProductModel.conditionOptions.first,
               decoration: const InputDecoration(
                 labelText: 'Condition',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.info_outline),
               ),
               items: ProductModel.conditionOptions.map((condition) {
-                return DropdownMenuItem(
+                return DropdownMenuItem<String>(
                   value: condition,
                   child: Row(
                     children: [
@@ -479,9 +755,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 );
               }).toList(),
               onChanged: (value) {
-                setState(() {
-                  _selectedCondition = value!;
-                });
+                if (value != null) {
+                  setState(() {
+                    _selectedCondition = value;
+                  });
+                }
               },
               validator: (value) {
                 if (value == null) {
@@ -497,9 +775,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
               controller: _priceController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Price (₹)',
+                labelText: 'Price (NPR)',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.currency_rupee),
+                prefixIcon: Icon(Icons.shopping_bag),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -695,11 +973,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
   Color _getConditionColor(String condition) {
     switch (condition) {
       case 'Brand New':
-      case 'Like New':
         return Colors.green;
-      case 'Excellent':
-      case 'Very Good':
+      case 'Like New':
         return Colors.teal;
+      case 'Very Good':
+        return Colors.lightGreen;
       case 'Good':
         return Colors.blue;
       case 'Fair':
