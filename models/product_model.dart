@@ -164,8 +164,8 @@ class ProductModel {
     'For Parts/Not Working',
   ];
 
-  // Categories
-  static const List<String> categoryOptions = [
+  // Default categories
+  static const List<String> defaultCategoryOptions = [
     'Electronics',
     'Clothing',
     'Furniture',
@@ -177,4 +177,8 @@ class ProductModel {
     'Vehicles',
     'Other',
   ];
+
+  static bool isValidDefaultCategory(String category) {
+    return defaultCategoryOptions.contains(category);
+  }
 }
