@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui' as ui;
 import '../providers/product_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/product_model.dart';
@@ -33,6 +34,11 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     }
   }
 
+  // Helper method to check dark mode
+  bool _isDarkMode() {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -40,6 +46,7 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final bool isWebLayout = screenWidth > 800;
+    final isDark = _isDarkMode();
 
     // number of columns based on screen size
     final int crossAxisCount = isWebLayout ? 4 : 2;
@@ -48,22 +55,91 @@ class _MyListingsScreenState extends State<MyListingsScreen> {
     final double cardHeight = isWebLayout ? 280 : screenHeight * 0.28;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Listings'),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const AddProductScreen()),
-              ).then((_) => _loadUserProducts());
-            },
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(88),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2E7D32),
+                Color(0xFF4CAF50),
+                Color(0xFFE91E63),
+                Color(0xFFF06292),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withAlpha(40)
+                    : const Color(0xFF2E7D32).withAlpha(40),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-        ],
+          child: ClipRRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              child: SafeArea(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Back button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded,
+                              color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Title
+                      const Expanded(
+                        child: Text(
+                          'My Listings',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      // Add button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.add, color: Colors.white),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AddProductScreen()),
+                            ).then((_) => _loadUserProducts());
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: _loadUserProducts,
