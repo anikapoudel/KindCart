@@ -836,7 +836,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Add account deletion method
+  // account deletion method
   Future<bool> deleteAccount() async {
     _setLoading(true);
     _clearError();
