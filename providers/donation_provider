@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../models/donation_model.dart';
 
@@ -14,9 +13,13 @@ class DonationProvider with ChangeNotifier {
 
   // Getters
   List<DonationModel> get userDonations => _userDonations;
+
   List<DonationModel> get completedDonations => _completedDonations;
+
   List<DonationModel> get pendingDonations => _pendingDonations;
+
   List<DonationModel> get approvedDonations => _approvedDonations;
+
   List<DonationModel> get rejectedDonations => _rejectedDonations;
 
   // Load ALL donations for admin
@@ -72,13 +75,12 @@ class DonationProvider with ChangeNotifier {
           .orderBy('completedAt', descending: true)
           .get();
 
-      _completedDonations = snapshot.docs
-          .map((doc) {
+      _completedDonations = snapshot.docs.map((doc) {
         final data = doc.data();
-        debugPrint('📦 Donation ${doc.id} has ${data['donorImageUrls']?.length ?? 0} images');
+        debugPrint(
+            '📦 Donation ${doc.id} has ${data['donorImageUrls']?.length ?? 0} images');
         return DonationModel.fromMap(doc.id, data);
-      })
-          .toList();
+      }).toList();
 
       debugPrint('✅ Loaded ${_completedDonations.length} completed donations');
       notifyListeners();
@@ -87,8 +89,9 @@ class DonationProvider with ChangeNotifier {
     }
   }
 
-// Update donation images 
-  Future<void> updateDonationImages(String donationId, List<String> imageUrls) async {
+// Update donation images
+  Future<void> updateDonationImages(
+      String donationId, List<String> imageUrls) async {
     try {
       debugPrint('📸 Updating donation images for: $donationId');
       debugPrint('📸 Image URLs to save: $imageUrls');
@@ -102,17 +105,18 @@ class DonationProvider with ChangeNotifier {
       // Refresh all data
       await loadAllDonations();
 
-      // Also refresh user donations if we know the donor
-      final doc = await _firestore.collection('donations').doc(donationId).get();
+      // Also refresh user donations if donor is known
+      final doc =
+          await _firestore.collection('donations').doc(donationId).get();
       final donorId = doc.data()?['donorId'];
       if (donorId != null) {
         await loadUserDonations(donorId);
       }
 
-      //  Also reload completed donations to show in donate_screen
+      //  reload completed donations to show in donate_screen
       await loadCompletedDonations();
 
-      notifyListeners(); // Ensure UI updates
+      notifyListeners();
     } catch (e) {
       debugPrint('❌ Error updating donation images: $e');
     }
@@ -156,7 +160,7 @@ class DonationProvider with ChangeNotifier {
     }
   }
 
-  // Submit new donation 
+  // Submit new donation
   Future<String?> submitDonation(DonationModel donation) async {
     try {
       debugPrint('📝 Submitting donation: ${donation.title}');
@@ -169,7 +173,7 @@ class DonationProvider with ChangeNotifier {
       debugPrint('✅ Donation saved with ID: ${docRef.id}');
 
       // Refresh all relevant data
-      await loadAllDonations(); // This will update admin view
+      await loadAllDonations();
       await loadUserDonations(donation.donorId);
       await loadPendingDonations();
 
@@ -206,7 +210,8 @@ class DonationProvider with ChangeNotifier {
       debugPrint('✅ Completing donation: $donationId');
 
       // First get the current donation to preserve donor images
-      final doc = await _firestore.collection('donations').doc(donationId).get();
+      final doc =
+          await _firestore.collection('donations').doc(donationId).get();
       final currentData = doc.data();
 
       Map<String, dynamic> updateData = {
@@ -225,7 +230,10 @@ class DonationProvider with ChangeNotifier {
         updateData['donorImageUrls'] = currentData['donorImageUrls'];
       }
 
-      await _firestore.collection('donations').doc(donationId).update(updateData);
+      await _firestore
+          .collection('donations')
+          .doc(donationId)
+          .update(updateData);
 
       // Refresh all data
       await loadAllDonations();
