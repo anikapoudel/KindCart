@@ -1,7 +1,5 @@
-// lib/services/navigation_helper.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../providers/auth_provider.dart';
 import '../widgets/role_guard.dart';
 import '../screens/addproduct_screen.dart';
@@ -11,10 +9,10 @@ import '../screens/cart_screen.dart';
 import '../screens/wishlist_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/auth_screen.dart';
-import '../screens/search_screen.dart';  // ← ADD THIS IMPORT
+import '../screens/search_screen.dart';
 
 class NavigationHelper {
-  // Navigate to Seller Screen (only for sellers)
+  // Navigate to Seller Screen
   static void goToSellScreen(BuildContext context) {
     Navigator.push(
       context,
@@ -30,7 +28,7 @@ class NavigationHelper {
     );
   }
 
-  // Navigate to Donation Screen (only for donors)
+  // Navigate to Donation Screen
   static void goToDonateScreen(BuildContext context) {
     Navigator.push(
       context,
@@ -116,7 +114,7 @@ class NavigationHelper {
     Navigator.pushNamed(context, '/about');
   }
 
-  // Navigate to Chat/AI Help Screen
+  // Navigate to AI Help Screen
   static void goToChatScreen(BuildContext context) {
     Navigator.pushNamed(context, '/chat');
   }
@@ -165,7 +163,8 @@ class NavigationHelper {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const AuthScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const AuthScreen()),
                     );
                   },
                 ),
@@ -291,10 +290,8 @@ class NavigationHelper {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Approval Pending'),
-        content: const Text(
-            'Your seller account is awaiting admin approval. '
-                'You will be able to list items once approved.'
-        ),
+        content: const Text('Your seller account is awaiting admin approval. '
+            'You will be able to list items once approved.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
