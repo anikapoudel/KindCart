@@ -4,11 +4,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:html' as html;
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
-
 import '../models/product_model.dart';
 import 'auth_provider.dart';
 
@@ -23,7 +21,7 @@ class ProductProvider extends ChangeNotifier {
   List<ProductModel> _userProducts = [];
   bool _isLoading = false;
   String? _errorMessage;
-  bool _isDisposed = false; // Track if provider is disposed
+  bool _isDisposed = false;
 
   // Filters and search
   String _searchQuery = '';
