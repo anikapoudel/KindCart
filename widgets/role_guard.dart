@@ -50,7 +50,6 @@ class RoleGuard extends StatelessWidget {
         if (requireSellerApproved &&
             userRole == 'Seller' &&
             !authProvider.isSellerApproved) {
-
           // Check if seller approval was requested but not yet approved
           if (authProvider.sellerApprovalRequested) {
             return _buildSellerApprovalPending(context);
@@ -91,7 +90,7 @@ class RoleGuard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Please verify your email address to access this feature. '
-                    'Check your inbox for the verification link.',
+                'Check your inbox for the verification link.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600]),
               ),
@@ -242,7 +241,7 @@ class RoleGuard extends StatelessWidget {
               const SizedBox(height: 10),
               const Text(
                 'Your seller account is currently under review. '
-                    'You will be able to list items once approved by an admin.',
+                'You will be able to list items once approved by an admin.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16),
               ),
@@ -258,7 +257,8 @@ class RoleGuard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                 ),
                 child: const Text('Go Back'),
               ),
@@ -331,13 +331,15 @@ class RoleGuard extends StatelessWidget {
                           listen: false,
                         );
 
-                        final success = await authProvider.requestSellerApproval();
+                        final success =
+                            await authProvider.requestSellerApproval();
 
                         if (context.mounted) {
                           if (success) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Seller approval requested successfully!'),
+                                content: Text(
+                                    'Seller approval requested successfully!'),
                                 backgroundColor: Colors.green,
                               ),
                             );
