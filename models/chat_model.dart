@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 class ChatModel {
   final String id;
   final String buyerId;
@@ -13,7 +14,7 @@ class ChatModel {
   final bool lastMessageIsFromBuyer;
   final int unreadCountBuyer;
   final int unreadCountSeller;
-  final String? orderId; // Link to order if placed
+  final String? orderId;
 
   ChatModel({
     required this.id,
@@ -60,7 +61,8 @@ class ChatModel {
       productId: map['productId'] ?? '',
       productTitle: map['productTitle'] ?? '',
       productImage: map['productImage'],
-      lastMessageTime: (map['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageTime:
+          (map['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastMessage: map['lastMessage'] ?? '',
       lastMessageIsFromBuyer: map['lastMessageIsFromBuyer'] ?? false,
       unreadCountBuyer: map['unreadCountBuyer'] ?? 0,
@@ -70,7 +72,6 @@ class ChatModel {
   }
 }
 
-// models/message_model.dart
 class MessageModel {
   final String id;
   final String chatId;
