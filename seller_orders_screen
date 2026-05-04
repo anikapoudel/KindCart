@@ -1,0 +1,538 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/order_provider.dart';
+import '../../providers/auth_provider.dart';
+import 'order_detail_screen.dart';
+import '../models/order_model.dart';
+
+class SellerOrdersScreen extends StatefulWidget {
+  const SellerOrdersScreen({super.key});
+
+  @override
+  State<SellerOrdersScreen> createState() => _SellerOrdersScreenState();
+}
+
+class _SellerOrdersScreenState extends State<SellerOrdersScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  String _selectedFilter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadOrders();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadOrders() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    if (authProvider.isAuthenticated) {
+      await orderProvider.loadSellerOrders(authProvider.user!.uid);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final orderProvider = Provider.of<OrderProvider>(context);
+
+    // Filter orders by status
+    final newOrders = orderProvider.sellerOrders
+        .where((o) =>
+            o.orderStatus == 'pending' || o.orderStatus == 'pending_contact')
+        .toList();
+    final processingOrders = orderProvider.sellerOrders
+        .where((o) =>
+            ['confirmed', 'processing', 'shipped'].contains(o.orderStatus))
+        .toList();
+    final completedOrders = orderProvider.sellerOrders
+        .where((o) =>
+            ['delivered', 'completed', 'cancelled'].contains(o.orderStatus))
+        .toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Orders Received'),
+        backgroundColor: Colors.orange,
+        foregroundColor: Colors.white,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          tabs: const [
+            Tab(text: 'New', icon: Icon(Icons.fiber_new)),
+            Tab(text: 'Processing', icon: Icon(Icons.autorenew)),
+            Tab(text: 'Completed', icon: Icon(Icons.done_all)),
+          ],
+        ),
+      ),
+      body: orderProvider.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : orderProvider.sellerOrders.isEmpty
+              ? _buildEmptyState()
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildOrderList(newOrders, isNew: true),
+                    _buildOrderList(processingOrders, isProcessing: true),
+                    _buildOrderList(completedOrders, isCompleted: true),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildOrderList(
+    List<OrderModel> orders, {
+    bool isNew = false,
+    bool isProcessing = false,
+    bool isCompleted = false,
+  }) {
+    if (orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 80,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No orders in this category',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadOrders,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: orders.length,
+        itemBuilder: (context, index) {
+          final order = orders[index];
+          return _buildOrderCard(order, isNew: isNew);
+        },
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(OrderModel order, {bool isNew = false}) {
+    final firstItem = order.items.isNotEmpty ? order.items.first : null;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  OrderDetailScreen(order: order, isSeller: true),
+            ),
+          ).then((_) => _loadOrders());
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with Order ID and Status
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(order.orderStatus).withAlpha(20),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getStatusIcon(order.orderStatus),
+                          size: 14,
+                          color: _getStatusColor(order.orderStatus),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _getStatusText(order.orderStatus),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _getStatusColor(order.orderStatus),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '#${order.id.substring(0, 8)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Buyer info and items
+              Row(
+                children: [
+                  // Buyer avatar
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.green.withAlpha(20),
+                    child: Text(
+                      order.buyerName.isNotEmpty
+                          ? order.buyerName[0].toUpperCase()
+                          : 'B',
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Buyer details and items count
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.buyerName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${order.items.length} item(s) • ₹${order.total.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        Text(
+                          order.paymentMethod,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Quick action for new orders
+                  if (isNew)
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.check_circle,
+                              color: Colors.green),
+                          onPressed: () => _confirmOrder(order),
+                          tooltip: 'Confirm Order',
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Items preview
+              if (firstItem != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      // Item image
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(6),
+                          image: firstItem.imageUrl != null
+                              ? DecorationImage(
+                                  image: NetworkImage(firstItem.imageUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: firstItem.imageUrl == null
+                            ? const Icon(Icons.image_not_supported,
+                                size: 20, color: Colors.grey)
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              firstItem.productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Qty: ${firstItem.quantity}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '₹${(firstItem.price * firstItem.quantity).toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 8),
+
+              // Date and actions
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDate(order.orderDate),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (order.paymentMethod == 'Cash on Delivery' &&
+                      order.orderStatus == 'confirmed')
+                    TextButton.icon(
+                      onPressed: () => _markAsShipped(order),
+                      icon: const Icon(Icons.local_shipping, size: 16),
+                      label: const Text('Mark Shipped'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.purple,
+                      ),
+                    ),
+                  if (order.paymentMethod == 'Cash on Delivery' &&
+                      order.orderStatus == 'shipped')
+                    TextButton.icon(
+                      onPressed: () => _markAsDelivered(order),
+                      icon: const Icon(Icons.check_circle, size: 16),
+                      label: const Text('Delivered'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.green,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 100,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'No orders yet',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'When customers place orders, they\'ll appear here',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+      case 'pending_contact':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'processing':
+        return Colors.lightBlue;
+      case 'shipped':
+        return Colors.purple;
+      case 'delivered':
+        return Colors.green;
+      case 'completed':
+        return Colors.teal;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'pending':
+      case 'pending_contact':
+        return Icons.hourglass_empty;
+      case 'confirmed':
+        return Icons.check_circle_outline;
+      case 'processing':
+        return Icons.autorenew;
+      case 'shipped':
+        return Icons.local_shipping;
+      case 'delivered':
+        return Icons.check_circle;
+      case 'completed':
+        return Icons.star;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help_outline;
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'pending':
+        return 'PENDING';
+      case 'pending_contact':
+        return 'AWAITING CONTACT';
+      case 'confirmed':
+        return 'CONFIRMED';
+      case 'processing':
+        return 'PROCESSING';
+      case 'shipped':
+        return 'SHIPPED';
+      case 'delivered':
+        return 'DELIVERED';
+      case 'completed':
+        return 'COMPLETED';
+      case 'cancelled':
+        return 'CANCELLED';
+      default:
+        return status.toUpperCase();
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
+
+    if (difference == 0) {
+      return 'Today';
+    } else if (difference == 1) {
+      return 'Yesterday';
+    } else if (difference < 7) {
+      return '$difference days ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  void _confirmOrder(OrderModel order) async {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    await orderProvider.updateOrderStatus(order.id, 'confirmed');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order confirmed'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _markAsShipped(OrderModel order) async {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    await orderProvider.updateOrderStatus(order.id, 'shipped');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order marked as shipped'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _markAsDelivered(OrderModel order) async {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    await orderProvider.updateOrderStatus(order.id, 'delivered');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Order marked as delivered'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+}
