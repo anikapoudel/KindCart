@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'dart:ui' as ui;
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/order_provider.dart';
@@ -91,15 +92,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _checkPendingReports() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.userRole;
-
-    // Only check for Admin and Seller roles
     if (userRole == 'Admin' || userRole == 'Seller') {
       try {
         Query query = FirebaseFirestore.instance
             .collection('reports')
             .where('status', isEqualTo: 'pending');
-
-        // For sellers, only count reports about their products
         if (userRole == 'Seller') {
           final userId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
           query = query.where('sellerId', isEqualTo: userId);
@@ -151,11 +148,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFE8F5F9),
-            Color(0xFFFCE4EC),
-          ],
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1A1A1A), const Color(0xFF1B2E1B)]
+              : [
+                  const Color(0xFFE8F5F9),
+                  const Color(0xFFFCE4EC),
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -207,56 +206,298 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final userRole = authProvider.userRole;
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isWebLayout = screenWidth > 800;
+    // gradient app bar for Buyer, Seller, and Donor roles
+    final bool showGradientAppBar =
+        userRole == 'Buyer' || userRole == 'Seller' || userRole == 'Donor';
     // background color based on user role
     Color getBackgroundColor() {
-      if (userRole == 'Seller') {
-        return const Color(0xFFFFF7ED); // Light orange for seller
-      } else if (userRole == 'Donor' || userRole == 'Buyer') {
-        return Colors.white; // White/default for donor and buyer
+      if (isDark) {
+        return const Color(0xFF121212);
       }
-      return Colors.white; // Default for other roles
+      switch (userRole) {
+        case 'Buyer':
+          return const Color(0xFFFFF9FA);
+        case 'Seller':
+          return const Color(0xFFFFF9FA);
+        case 'Donor':
+          return const Color(0xFFFFF9FA);
+        case 'Admin':
+          return Colors.white;
+        default:
+          return Colors.white;
+      }
     }
 
     return Scaffold(
       backgroundColor: getBackgroundColor(),
-      appBar: AppBar(
-        title: Text(_getTitle(authProvider.userRole)),
-        backgroundColor: _getRoleColor(authProvider.userRole),
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-                themeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => themeProvider.toggleTheme(),
-          ),
-          if (authProvider.userRole == 'Seller' &&
-              authProvider.isSellerApproved)
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const AddProductScreen()),
-                );
-              },
-              tooltip: 'Add Product',
+      appBar: showGradientAppBar
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(88),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF2E7D32),
+                      Color(0xFF4CAF50),
+                      Color(0xFFE91E63),
+                      Color(0xFFF06292),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: [0.0, 0.3, 0.7, 1.0],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(40),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            // Back button
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(30),
+                                borderRadius: BorderRadius.circular(30),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(20),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.arrow_back_rounded,
+                                    color: Colors.white, size: 24),
+                                onPressed: () => Navigator.pop(context),
+                                padding: const EdgeInsets.all(10),
+                                constraints: const BoxConstraints(
+                                    minWidth: 44, minHeight: 44),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // Brand Section
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ShaderMask(
+                                    shaderCallback: (bounds) =>
+                                        const LinearGradient(
+                                      colors: [Colors.white, Colors.white70],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ).createShader(bounds),
+                                    child: Text(
+                                      _getTitle(userRole),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: isWebLayout ? 22 : 20,
+                                        letterSpacing: 0.5,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withAlpha(30),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withAlpha(50),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.person_outline_rounded,
+                                          size: isWebLayout ? 14 : 12,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _getRoleSubtitle(userRole),
+                                          style: TextStyle(
+                                            fontSize: isWebLayout ? 11 : 10,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Theme toggle button
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(30),
+                                borderRadius: BorderRadius.circular(30),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withAlpha(20),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                key: ValueKey(isDark),
+                                icon: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  transitionBuilder: (Widget child,
+                                      Animation<double> animation) {
+                                    return RotationTransition(
+                                      turns: animation,
+                                      child: ScaleTransition(
+                                        scale: animation,
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: Icon(
+                                    isDark
+                                        ? Icons.light_mode_rounded
+                                        : Icons.dark_mode_rounded,
+                                    key: ValueKey(isDark),
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  themeProvider.toggleTheme();
+                                },
+                                padding: const EdgeInsets.all(10),
+                                constraints: const BoxConstraints(
+                                    minWidth: 44, minHeight: 44),
+                              ),
+                            ),
+
+                            // Add button for Seller/Donor
+                            if ((userRole == 'Seller' &&
+                                    authProvider.isSellerApproved) ||
+                                userRole == 'Donor')
+                              const SizedBox(width: 8),
+                            if ((userRole == 'Seller' &&
+                                    authProvider.isSellerApproved) ||
+                                userRole == 'Donor')
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(30),
+                                  borderRadius: BorderRadius.circular(30),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(20),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.add_rounded,
+                                      color: Colors.white, size: 24),
+                                  onPressed: () {
+                                    if (userRole == 'Seller') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const AddProductScreen()),
+                                      );
+                                    } else if (userRole == 'Donor') {
+                                      Navigator.pushNamed(
+                                          context, '/add-donation');
+                                    }
+                                  },
+                                  tooltip: userRole == 'Seller'
+                                      ? 'Add Product'
+                                      : 'Add Donation',
+                                  padding: const EdgeInsets.all(10),
+                                  constraints: const BoxConstraints(
+                                      minWidth: 44, minHeight: 44),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : AppBar(
+              title: Text(_getTitle(userRole)),
+              backgroundColor: _getRoleColor(userRole),
+              foregroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                IconButton(
+                  key: ValueKey(isDark),
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                      return RotationTransition(
+                        turns: animation,
+                        child: ScaleTransition(
+                          scale: animation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Icon(
+                      isDark ? Icons.light_mode : Icons.dark_mode,
+                      key: ValueKey(isDark),
+                    ),
+                  ),
+                  onPressed: () => themeProvider.toggleTheme(),
+                ),
+                if (userRole == 'Seller' && authProvider.isSellerApproved)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AddProductScreen()),
+                      );
+                    },
+                    tooltip: 'Add Product',
+                  ),
+                if (userRole == 'Donor')
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/add-donation');
+                    },
+                    tooltip: 'Add Donation',
+                  ),
+              ],
             ),
-          if (authProvider.userRole == 'Donor')
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () {
-                Navigator.pushNamed(context, '/add-donation');
-              },
-              tooltip: 'Add Donation',
-            ),
-        ],
-      ),
       body: authProvider.isAuthenticated
           ? RefreshIndicator(
               onRefresh: () async {
@@ -270,15 +511,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _buildProfileHeader(authProvider),
+                    _buildProfileHeader(authProvider, isDark),
                     const SizedBox(height: 24),
-                    if (authProvider.userRole == 'Buyer') _buildBuyerContent(),
-                    if (authProvider.userRole == 'Seller')
-                      _buildSellerContent(authProvider),
-                    if (authProvider.userRole == 'Donor') _buildDonorContent(),
-                    if (authProvider.userRole == 'Admin') _buildAdminContent(),
+                    if (userRole == 'Buyer') _buildBuyerContent(isDark),
+                    if (userRole == 'Seller')
+                      _buildSellerContent(authProvider, isDark),
+                    if (userRole == 'Donor') _buildDonorContent(isDark),
+                    if (userRole == 'Admin') _buildAdminContent(isDark),
                     const SizedBox(height: 24),
-                    _buildCommonSettings(),
+                    _buildCommonSettings(isDark),
                     const SizedBox(height: 16),
                     _buildLogoutButton(authProvider),
                     const SizedBox(height: 20),
@@ -286,7 +527,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             )
-          : _buildLoginPrompt(),
+          : _buildLoginPrompt(isDark),
       bottomNavigationBar: _buildBottomNavigationBar(userRole, isDark),
     );
   }
@@ -298,9 +539,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'Seller':
         return 'My Account';
       case 'Donor':
-        return 'Donor Impact';
+        return 'My Account';
       case 'Admin':
-        return 'Admin Panel';
+        return 'My Account';
+      default:
+        return 'Profile';
+    }
+  }
+
+  String _getRoleSubtitle(String? role) {
+    switch (role) {
+      case 'Buyer':
+        return 'Your shopping journey';
+      case 'Seller':
+        return 'Manage your store';
+      case 'Donor':
+        return 'Make a difference';
       default:
         return 'Profile';
     }
@@ -321,9 +575,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Widget _buildProfileHeader(AuthProvider auth) {
+  Widget _buildProfileHeader(AuthProvider auth, bool isDark) {
     final user = auth.user;
     final userData = auth.userData;
+    final userRole = auth.userRole;
 
     final userName = userData?['name'] ??
         user?.displayName ??
@@ -333,9 +588,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userPhone = userData?['phone'] ?? '';
     final isVerified = auth.isEmailVerified;
 
+    // Determine header background color
+    Color getHeaderBackgroundColor() {
+      if (isDark) {
+        return const Color(0xFF1E1E1E);
+      }
+      switch (userRole) {
+        case 'Buyer':
+          return const Color(0xFFFFF0F5);
+        case 'Seller':
+          return const Color(0xFFFFF0F5);
+        case 'Donor':
+          return const Color(0xFFFFF0F5);
+        default:
+          return Colors.white;
+      }
+    }
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: getHeaderBackgroundColor(),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Row(
@@ -385,14 +658,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Expanded(
                         child: Text(
                           userName,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
+                        icon: Icon(Icons.edit,
+                            size: 20,
+                            color: isDark ? Colors.white70 : Colors.grey[700]),
                         onPressed: () => _showEditProfileDialog(auth),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
@@ -401,12 +678,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(userEmail,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                      style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          fontSize: 14)),
                   if (userPhone.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(userPhone,
-                        style:
-                            TextStyle(color: Colors.grey[600], fontSize: 12)),
+                        style: TextStyle(
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            fontSize: 12)),
                   ],
                   const SizedBox(height: 8),
                   Container(
@@ -434,7 +714,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildBuyerContent() {
+  Widget _buildBuyerContent(bool isDark) {
     final orderProvider = Provider.of<OrderProvider>(context);
     final wishlistProvider = Provider.of<WishlistProvider>(context);
     final cartProvider = Provider.of<CartProvider>(context);
@@ -450,13 +730,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Shopping',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text('Shopping',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black)),
         const SizedBox(height: 12),
         Card(
           elevation: 2,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           child: Column(
             children: [
               _buildMenuItemWithBadge(
@@ -464,6 +748,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'My Orders',
                 subtitle: 'Track your purchases',
                 badgeCount: pendingOrdersCount,
+                isDark: isDark,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -478,6 +763,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'My Wishlist',
                 subtitle: 'Items you saved',
                 badgeCount: wishlistCount,
+                isDark: isDark,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -492,6 +778,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'My Cart',
                 subtitle: 'Items ready to purchase',
                 badgeCount: cartCount,
+                isDark: isDark,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -506,7 +793,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSellerContent(AuthProvider auth) {
+  Widget _buildSellerContent(AuthProvider auth, bool isDark) {
     return Consumer<ProductProvider>(
       builder: (context, productProvider, child) {
         final activeListings =
@@ -522,7 +809,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: isDark
+                      ? Colors.orange.shade900.withAlpha(30)
+                      : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.orange.shade200),
                 ),
@@ -549,7 +838,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ? 'Your request is being reviewed'
                                 : 'Complete your seller profile',
                             style: TextStyle(
-                                color: Colors.grey[600], fontSize: 12),
+                                color: isDark
+                                    ? Colors.grey[400]
+                                    : Colors.grey[600],
+                                fontSize: 12),
                           ),
                         ],
                       ),
@@ -572,19 +864,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-            const Text('Overview',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Overview',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black)),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _buildStatCard('$activeListings', 'Active',
-                      Icons.inventory, Colors.green),
+                      Icons.inventory, Colors.green, isDark),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStatCard(
-                      '$soldItems', 'Sold', Icons.sell, Colors.blue),
+                      '$soldItems', 'Sold', Icons.sell, Colors.blue, isDark),
                 ),
               ],
             ),
@@ -592,9 +887,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('My Listings',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('My Listings',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black)),
                 TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -614,9 +911,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     Icon(Icons.inventory_2_outlined,
-                        size: 50, color: Colors.grey[400]),
+                        size: 50,
+                        color: isDark ? Colors.grey[600] : Colors.grey[400]),
                     const SizedBox(height: 12),
-                    const Text('No listings yet'),
+                    Text('No listings yet',
+                        style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87)),
                     const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () {
@@ -650,13 +950,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 140,
                         margin: const EdgeInsets.only(right: 12),
                         child: Card(
+                          color:
+                              isDark ? const Color(0xFF1E1E1E) : Colors.white,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.grey[200],
+                                    color: isDark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[200],
                                     borderRadius: const BorderRadius.vertical(
                                         top: Radius.circular(12)),
                                     image: product.imageUrls.isNotEmpty
@@ -684,8 +988,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       product.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black),
                                     ),
                                     Text(
                                       'NPR ${product.price.toStringAsFixed(0)}',
@@ -736,25 +1043,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildDonorContent() {
+  Widget _buildDonorContent(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Donor Tools',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text('Donor Tools',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black)),
         const SizedBox(height: 12),
         Card(
           elevation: 2,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Quick Actions',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text('Quick Actions',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black)),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -763,6 +1076,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.add_circle,
                         label: 'New Donation',
                         color: Colors.purple,
+                        isDark: isDark,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -778,6 +1092,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: Icons.home,
                         label: 'Donor Home',
                         color: Colors.green,
+                        isDark: isDark,
                         onTap: () => Navigator.pop(context),
                       ),
                     ),
@@ -795,6 +1110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String label,
     required Color color,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -822,17 +1138,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAdminContent() {
+  Widget _buildAdminContent(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Admin Tools',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text('Admin Tools',
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black)),
         const SizedBox(height: 12),
         Card(
           elevation: 2,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -842,6 +1162,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Manage Users',
                   subtitle: 'View all registered users',
                   color: Colors.blue,
+                  isDark: isDark,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -856,6 +1177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Manage Products',
                   subtitle: 'Review and moderate listings',
                   color: Colors.green,
+                  isDark: isDark,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -871,6 +1193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Manage Donations',
                   subtitle: 'Review and manage donations',
                   color: Colors.purple,
+                  isDark: isDark,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -886,6 +1209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Approve Sellers',
                   subtitle: 'Review pending seller requests',
                   color: Colors.orange,
+                  isDark: isDark,
                   onTap: () {
                     Navigator.push(
                       context,
@@ -907,6 +1231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required String subtitle,
     required Color color,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return Container(
@@ -918,14 +1243,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ListTile(
         leading: Icon(icon, color: color),
         title: Text(title, style: TextStyle(color: color)),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600])),
+        subtitle: Text(subtitle,
+            style:
+                TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])),
         trailing: Icon(Icons.arrow_forward_ios, color: color, size: 16),
         onTap: onTap,
       ),
     );
   }
 
-  Widget _buildCommonSettings() {
+  Widget _buildCommonSettings(bool isDark) {
     final authProvider = Provider.of<AuthProvider>(context);
     final userRole = authProvider.userRole;
 
@@ -934,13 +1261,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Settings',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Settings',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black)),
             const SizedBox(height: 12),
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
               child: Column(
                 children: [
                   _buildMenuItemWithBadge(
@@ -948,6 +1279,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'Notifications',
                     subtitle: 'View announcements and updates',
                     badgeCount: announcementProvider.unreadCount,
+                    isDark: isDark,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -964,6 +1296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'Reports',
                       subtitle: 'View and manage reports',
                       showRedDot: _hasPendingReports,
+                      isDark: isDark,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -979,6 +1312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.help,
                     title: 'Help & Support',
                     subtitle: 'Chat with our AI assistant',
+                    isDark: isDark,
                     onTap: () {
                       ChatScreen.showAnchored(
                         context: context,
@@ -992,6 +1326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.info,
                     title: 'About KindCart',
                     subtitle: 'Learn about our mission',
+                    isDark: isDark,
                     onTap: () {
                       Navigator.push(
                         context,
@@ -1014,13 +1349,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return ListTile(
       key: key,
       leading: Icon(icon, color: Colors.green),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      title: Text(title,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+      subtitle: Text(subtitle,
+          style:
+              TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
     );
@@ -1032,13 +1371,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required String subtitle,
     required int badgeCount,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return ListTile(
       key: key,
       leading: Icon(icon, color: Colors.green),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      title: Text(title,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+      subtitle: Text(subtitle,
+          style:
+              TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1065,20 +1408,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // method for menu items with red dot indicator
   Widget _buildMenuItemWithRedDot({
     Key? key,
     required IconData icon,
     required String title,
     required String subtitle,
     required bool showRedDot,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
     return ListTile(
       key: key,
       leading: Icon(icon, color: Colors.green),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      title: Text(title,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+      subtitle: Text(subtitle,
+          style:
+              TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600])),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1100,7 +1446,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatCard(
-      String value, String label, IconData icon, Color color) {
+      String value, String label, IconData icon, Color color, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1112,9 +1458,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 4),
           Text(value,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black)),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600])),
         ],
       ),
     );
@@ -1147,7 +1498,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildLoginPrompt() {
+  Widget _buildLoginPrompt(bool isDark) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1164,15 +1515,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   size: 80, color: Colors.green),
             ),
             const SizedBox(height: 30),
-            const Text(
+            Text(
               'Join KindCart Community',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Login to manage your profile',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                  color: isDark ? Colors.grey[400] : Colors.grey[600]),
             ),
             const SizedBox(height: 30),
             SizedBox(
